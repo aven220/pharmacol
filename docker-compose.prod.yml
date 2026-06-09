@@ -82,8 +82,11 @@ services:
     depends_on:
       backend:
         condition: service_started
+    # 127.0.0.1 solo host; pharma-edge accede vía red Docker (connect-pharma-network.sh)
     ports:
       - "127.0.0.1:${PHARMACOL_HTTP_PORT:-8080}:80"
+    expose:
+      - "80"
 
   migrate:
     build:

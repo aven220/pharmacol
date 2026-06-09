@@ -45,7 +45,13 @@ echo ""
 echo "════════════════════════════════════════════════════════════"
 
 if [[ "$MODE" == "docker" ]]; then
-  echo "  NGINX ESTÁ EN DOCKER (no hay nginx en el host)"
+  echo "  PASO PREVIO — conectar redes Docker:"
+  echo "     bash scripts/connect-pharma-network.sh"
+  echo ""
+  echo "  Luego pega el bloque location en nginx de pharma-edge-prod"
+  echo "  (proxy_pass http://pharmacol-web/pharmacol/;)"
+  echo ""
+fi
   echo "════════════════════════════════════════════════════════════"
   echo ""
   echo "1. Busca el contenedor A-AS:"

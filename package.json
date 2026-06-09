@@ -21,6 +21,7 @@
     "deploy:server": "bash scripts/deploy-server.sh",
     "setup:server": "bash scripts/setup-server-env.sh",
     "install:nginx": "bash scripts/install-nginx-coexist.sh docker",
+    "connect:pharma": "bash scripts/connect-pharma-network.sh",
     "find:nginx": "bash scripts/find-aas-nginx.sh",
     "ssl:selfsigned": "bash scripts/generate-selfsigned-ip.sh",
     "diagnose:backend": "bash scripts/diagnose-backend.sh",
