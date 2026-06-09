@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build
+dist/
+build/
+.turbo/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Prisma
+database/prisma/migrations/**/migration.sql.bak
+
+# Logs
+logs/
+*.log
+
+# Test
+coverage/
+
+# Flutter (future)
+apps/mobile/.dart_tool/
+apps/mobile/build/

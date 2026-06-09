@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "PharmaCol",
+    "slug": "pharmacol",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "pharmacol",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#006874"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "co.pharmacol.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#006874"
+      },
+      "package": "co.pharmacol.app",
+      "usesCleartextTraffic": true
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {}
+    }
+  }
+}

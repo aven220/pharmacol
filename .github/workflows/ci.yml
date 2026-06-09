@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: pharmacol
+          POSTGRES_PASSWORD: pharmacol_test
+          POSTGRES_DB: pharmacol_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm db:generate
+        env:
+          DATABASE_URL: postgresql://pharmacol:pharmacol_test@localhost:5432/pharmacol_test
+
+      - name: Typecheck backend
+        run: pnpm --filter @pharmacol/backend typecheck
+
+      - name: Build backend
+        run: pnpm build:backend
+        env:
+          DATABASE_URL: postgresql://pharmacol:pharmacol_test@localhost:5432/pharmacol_test
+          JWT_ACCESS_SECRET: ci-access-secret-minimum-32-characters
+          JWT_REFRESH_SECRET: ci-refresh-secret-minimum-32-characters
+          REDIS_URL: redis://localhost:6379
+
+      - name: Run tests
+        run: pnpm --filter @pharmacol/backend test
+        env:
+          DATABASE_URL: postgresql://pharmacol:pharmacol_test@localhost:5432/pharmacol_test
+          JWT_ACCESS_SECRET: ci-access-secret-minimum-32-characters
+          JWT_REFRESH_SECRET: ci-refresh-secret-minimum-32-characters
+
+  mobile-expo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @pharmacol/mobile-expo typecheck
+
+  admin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @pharmacol/admin typecheck
+      - run: pnpm --filter @pharmacol/admin build

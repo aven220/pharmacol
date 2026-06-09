@@ -1,0 +1,739 @@
+// PharmaCol — Modelo de datos Fase 2
+// PostgreSQL 17 | Prisma ORM
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pg_trgm, uuid_ossp(map: "uuid-ossp"), pgcrypto]
+}
+
+// =============================================================================
+// ENUMS
+// =============================================================================
+
+enum UserStatus {
+  ACTIVO
+  INACTIVO
+  BLOQUEADO
+  PENDIENTE_VERIFICACION
+}
+
+enum DocumentType {
+  CC
+  CE
+  NIT
+  PASAPORTE
+}
+
+enum LaboratoryType {
+  FABRICANTE
+  IMPORTADOR
+  TITULAR
+  DISTRIBUIDOR
+}
+
+enum RegistrationStatus {
+  VIGENTE
+  VENCIDO
+  CANCELADO
+  SUSPENDIDO
+  TRAMITE
+  OTRO
+  NO_EN_FUENTE
+}
+
+enum ProductType {
+  MEDICAMENTO
+  DISPOSITIVO
+  BIOLOGICO
+  COSMETICO
+}
+
+enum DataSourceFormat {
+  CSV
+  JSON
+  API_SOCRATA
+  PDF
+}
+
+enum SyncJobType {
+  PROGRAMADA
+  MANUAL
+  REINTENTO
+}
+
+enum SyncJobStatus {
+  PENDIENTE
+  EN_PROCESO
+  COMPLETADA
+  FALLIDA
+  PARCIAL
+}
+
+enum SyncRecordAction {
+  INSERT
+  UPDATE
+  SKIP
+  ERROR
+}
+
+enum EntityType {
+  MEDICAMENTO
+  DISPOSITIVO
+}
+
+enum SearchType {
+  NOMBRE
+  PRINCIPIO_ACTIVO
+  REGISTRO
+  CUM
+  IUM
+  ATC
+  BARCODE
+  QR
+  OCR
+  IA
+}
+
+enum ImageOrigin {
+  CAMARA
+  GALERIA
+}
+
+enum OcrEngine {
+  ML_KIT
+  MANUAL
+}
+
+enum IaAnalysisType {
+  IDENTIFICACION
+  CORRECCION_OCR
+  COMPARACION
+}
+
+enum FraudRiskLevel {
+  BAJO
+  MEDIO
+  ALTO
+  CRITICO
+}
+
+enum DataOrigin {
+  INVIMA
+  MANUAL
+  IA
+}
+
+enum DeviceRiskClass {
+  I
+  IIa
+  IIb
+  III
+}
+
+// =============================================================================
+// SEGURIDAD Y USUARIOS
+// =============================================================================
+
+model User {
+  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email             String        @unique @db.VarChar(255)
+  passwordHash      String?       @map("password_hash") @db.VarChar(255)
+  nombre            String        @db.VarChar(150)
+  documentoTipo     DocumentType? @map("documento_tipo")
+  documentoNumero   String?       @map("documento_numero") @db.VarChar(50)
+  telefono          String?       @db.VarChar(20)
+  status            UserStatus    @default(PENDIENTE_VERIFICACION)
+  intentosFallidos  Int           @default(0) @map("intentos_fallidos") @db.SmallInt
+  bloqueadoHasta    DateTime?     @map("bloqueado_hasta") @db.Timestamptz
+  emailVerificadoAt DateTime?     @map("email_verificado_at") @db.Timestamptz
+  ultimoLoginAt     DateTime?     @map("ultimo_login_at") @db.Timestamptz
+  biometricEnabled  Boolean       @default(false) @map("biometric_enabled")
+  deviceFingerprint String?       @map("device_fingerprint") @db.VarChar(255)
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt         DateTime?     @map("deleted_at") @db.Timestamptz
+
+  roles         UserRole[]
+  refreshTokens RefreshToken[]
+  sessions      Session[]
+  favoritos     Favorite[]
+  historial     QueryHistory[]
+  imagenes      Image[]
+  auditorias    AuditLog[]
+  syncJobs      SyncJob[]      @relation("SyncExecutedBy")
+
+  @@index([status])
+  @@index([documentoNumero])
+  @@map("usuarios")
+}
+
+model Role {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  codigo      String   @unique @db.VarChar(50)
+  nombre      String   @db.VarChar(100)
+  descripcion String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  users       UserRole[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  codigo      String   @unique @db.VarChar(100)
+  recurso     String   @db.VarChar(50)
+  accion      String   @db.VarChar(50)
+  descripcion String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  roles RolePermission[]
+
+  @@unique([recurso, accion])
+  @@map("permisos")
+}
+
+model UserRole {
+  userId     String   @map("usuario_id") @db.Uuid
+  roleId     String   @map("rol_id") @db.Uuid
+  assignedAt DateTime @default(now()) @map("assigned_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("usuario_roles")
+}
+
+model RolePermission {
+  roleId       String @map("rol_id") @db.Uuid
+  permissionId String @map("permiso_id") @db.Uuid
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("rol_permisos")
+}
+
+model RefreshToken {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String    @map("usuario_id") @db.Uuid
+  tokenHash         String    @map("token_hash") @db.VarChar(255)
+  familyId          String    @map("familia_id") @db.Uuid
+  expiresAt         DateTime  @map("expires_at") @db.Timestamptz
+  revokedAt         DateTime? @map("revocado_at") @db.Timestamptz
+  deviceFingerprint String?   @map("device_fingerprint") @db.VarChar(255)
+  ipAddress         String?   @map("ip_address") @db.VarChar(45)
+  userAgent         String?   @map("user_agent") @db.Text
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+model Session {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("usuario_id") @db.Uuid
+  ipAddress String?  @map("ip_address") @db.VarChar(45)
+  userAgent String?  @map("user_agent") @db.Text
+  success   Boolean  @default(true)
+  metadata  Json?    @db.JsonB
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("sesiones")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("usuario_id") @db.Uuid
+  tokenHash String    @map("token_hash") @db.VarChar(255)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz
+  usedAt    DateTime? @map("used_at") @db.Timestamptz
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([tokenHash])
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+// =============================================================================
+// DOMINIO FARMACÉUTICO
+// =============================================================================
+
+model Laboratory {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nit             String?        @unique @db.VarChar(20)
+  razonSocial     String         @map("razon_social") @db.VarChar(300)
+  nombreComercial String?        @map("nombre_comercial") @db.VarChar(300)
+  pais            String         @default("COL") @db.VarChar(3)
+  tipo            LaboratoryType
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+
+  medicamentosFabricante Medicamento[]       @relation("MedicamentoLaboratorio")
+  medicamentosTitular    Medicamento[]       @relation("MedicamentoTitular")
+  dispositivosFabricante DispositivoMedico[] @relation("DispositivoFabricante")
+  dispositivosImportador DispositivoMedico[] @relation("DispositivoImportador")
+
+  @@index([razonSocial])
+  @@map("laboratorios")
+}
+
+model ActiveIngredient {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombreNormalizado String   @unique @map("nombre_normalizado") @db.VarChar(300)
+  nombreOficial     String   @map("nombre_oficial") @db.VarChar(300)
+  dci               Boolean  @default(true)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  medicamentos MedicamentoPrincipioActivo[]
+
+  @@index([nombreOficial])
+  @@map("principios_activos")
+}
+
+model InvimaRegistration {
+  id               String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  numeroRegistro   String      @unique @map("numero_registro") @db.VarChar(50)
+  expediente       String?     @db.VarChar(50)
+  fechaExpedicion  DateTime?   @map("fecha_expedicion") @db.Date
+  fechaVencimiento DateTime?   @map("fecha_vencimiento") @db.Date
+  estado           String?     @db.VarChar(50)
+  modalidad        String?     @db.VarChar(100)
+  tipoProducto     ProductType @map("tipo_producto")
+  createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+
+  medicamento Medicamento?
+  dispositivo DispositivoMedico?
+
+  @@index([expediente])
+  @@index([estado])
+  @@map("registros_invima")
+}
+
+model AtcCode {
+  codigo      String   @id @db.VarChar(10)
+  nivel       Int      @db.SmallInt
+  descripcion String   @db.VarChar(500)
+  padreCodigo String?  @map("padre_codigo") @db.VarChar(10)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  padre        AtcCode?      @relation("AtcHierarchy", fields: [padreCodigo], references: [codigo])
+  hijos        AtcCode[]     @relation("AtcHierarchy")
+  medicamentos Medicamento[]
+
+  @@index([nivel])
+  @@index([padreCodigo])
+  @@map("codigos_atc")
+}
+
+model Medicamento {
+  id                        String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombreComercial           String             @map("nombre_comercial") @db.VarChar(300)
+  nombreNormalizado         String             @map("nombre_normalizado") @db.VarChar(300)
+  concentracion             String?            @db.VarChar(200)
+  formaFarmaceutica         String?            @map("forma_farmaceutica") @db.VarChar(150)
+  viaAdministracion         String?            @map("via_administracion") @db.VarChar(100)
+  laboratorioId             String?            @map("laboratorio_id") @db.Uuid
+  titularId                 String?            @map("titular_id") @db.Uuid
+  registroInvimaId          String             @unique @map("registro_invima_id") @db.Uuid
+  atcCodigo                 String?            @map("atc_codigo") @db.VarChar(10)
+  estadoRegistro            RegistrationStatus @default(VIGENTE) @map("estado_registro")
+  fechaVencimiento          DateTime?          @map("fecha_vencimiento") @db.Date
+  indicaciones              String?            @db.Text
+  contraindicaciones        String?            @db.Text
+  observacionesRegulatorias String?            @map("observaciones_regulatorias") @db.Text
+  hashContenido             String?            @map("hash_contenido") @db.VarChar(64)
+  fuente                    DataOrigin         @default(INVIMA)
+  syncVersion               BigInt             @default(0) @map("sync_version")
+  createdAt                 DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt                 DateTime           @updatedAt @map("updated_at") @db.Timestamptz
+
+  laboratorio       Laboratory?                  @relation("MedicamentoLaboratorio", fields: [laboratorioId], references: [id])
+  titular           Laboratory?                  @relation("MedicamentoTitular", fields: [titularId], references: [id])
+  registroInvima    InvimaRegistration           @relation(fields: [registroInvimaId], references: [id])
+  atc               AtcCode?                     @relation(fields: [atcCodigo], references: [codigo])
+  principiosActivos MedicamentoPrincipioActivo[]
+  presentaciones    Presentacion[]
+  codigosCum        CodigoCum[]
+  codigosIum        CodigoIum[]
+
+  @@index([nombreNormalizado])
+  @@index([estadoRegistro])
+  @@index([laboratorioId])
+  @@index([titularId])
+  @@index([hashContenido])
+  @@map("medicamentos")
+}
+
+model MedicamentoPrincipioActivo {
+  medicamentoId     String  @map("medicamento_id") @db.Uuid
+  principioActivoId String  @map("principio_activo_id") @db.Uuid
+  concentracion     String? @db.VarChar(200)
+  esPrincipal       Boolean @default(false) @map("es_principal")
+
+  medicamento     Medicamento      @relation(fields: [medicamentoId], references: [id], onDelete: Cascade)
+  principioActivo ActiveIngredient @relation(fields: [principioActivoId], references: [id], onDelete: Cascade)
+
+  @@id([medicamentoId, principioActivoId])
+  @@map("medicamento_principios_activos")
+}
+
+model Presentacion {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  medicamentoId String   @map("medicamento_id") @db.Uuid
+  descripcion   String   @db.VarChar(500)
+  codigoBarras  String?  @map("codigo_barras") @db.VarChar(50)
+  codigoCum     String?  @map("codigo_cum") @db.VarChar(50)
+  cantidad      Decimal? @db.Decimal(12, 4)
+  unidad        String?  @db.VarChar(50)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  medicamento Medicamento @relation(fields: [medicamentoId], references: [id], onDelete: Cascade)
+
+  @@index([medicamentoId])
+  @@index([codigoBarras])
+  @@index([codigoCum])
+  @@map("presentaciones")
+}
+
+model CodigoCum {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  expedienteCum       String   @map("expediente_cum") @db.VarChar(50)
+  consecutivo         String   @db.VarChar(20)
+  codigoCompleto      String   @unique @map("codigo_completo") @db.VarChar(60)
+  estadoCum           String?  @map("estado_cum") @db.VarChar(50)
+  descripcionProducto String?  @map("descripcion_producto") @db.VarChar(500)
+  medicamentoId       String   @map("medicamento_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  medicamento Medicamento @relation(fields: [medicamentoId], references: [id], onDelete: Cascade)
+
+  @@index([medicamentoId])
+  @@index([expedienteCum])
+  @@map("codigos_cum")
+}
+
+model CodigoIum {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  codigoIum     String   @unique @map("codigo_ium") @db.VarChar(100)
+  medicamentoId String   @map("medicamento_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  medicamento Medicamento @relation(fields: [medicamentoId], references: [id], onDelete: Cascade)
+
+  @@index([medicamentoId])
+  @@map("codigos_ium")
+}
+
+// =============================================================================
+// DISPOSITIVOS MÉDICOS
+// =============================================================================
+
+model DispositivoMedico {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre           String             @db.VarChar(500)
+  descripcion      String?            @db.Text
+  registroInvimaId String             @unique @map("registro_invima_id") @db.Uuid
+  fabricanteId     String?            @map("fabricante_id") @db.Uuid
+  importadorId     String?            @map("importador_id") @db.Uuid
+  claseRiesgo      DeviceRiskClass?   @map("clase_riesgo")
+  estadoRegistro   RegistrationStatus @default(VIGENTE) @map("estado_registro")
+  categoria        String?            @db.VarChar(200)
+  codigoUdiDi      String?            @map("codigo_udi_di") @db.VarChar(100)
+  hashContenido    String?            @map("hash_contenido") @db.VarChar(64)
+  fuente           DataOrigin         @default(INVIMA)
+  syncVersion      BigInt             @default(0) @map("sync_version")
+  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime           @updatedAt @map("updated_at") @db.Timestamptz
+
+  registroInvima InvimaRegistration    @relation(fields: [registroInvimaId], references: [id])
+  fabricante     Laboratory?           @relation("DispositivoFabricante", fields: [fabricanteId], references: [id])
+  importador     Laboratory?           @relation("DispositivoImportador", fields: [importadorId], references: [id])
+  atributos      DispositivoAtributo[]
+
+  @@index([nombre])
+  @@index([estadoRegistro])
+  @@index([hashContenido])
+  @@map("dispositivos_medicos")
+}
+
+model DispositivoAtributo {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  dispositivoId String   @map("dispositivo_id") @db.Uuid
+  clave         String   @db.VarChar(100)
+  valor         String   @db.Text
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  dispositivo DispositivoMedico @relation(fields: [dispositivoId], references: [id], onDelete: Cascade)
+
+  @@unique([dispositivoId, clave])
+  @@map("dispositivo_atributos")
+}
+
+// =============================================================================
+// SINCRONIZACIÓN INVIMA
+// =============================================================================
+
+model DataSource {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  codigo         String           @unique @db.VarChar(50)
+  nombre         String           @db.VarChar(200)
+  formato        DataSourceFormat
+  urlBase        String?          @map("url_base") @db.Text
+  datasetId      String?          @map("dataset_id") @db.VarChar(20)
+  frecuenciaCron String           @default("0 3 * * *") @map("frecuencia_cron") @db.VarChar(50)
+  activo         Boolean          @default(true)
+  metadata       Json?            @db.JsonB
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz
+
+  syncJobs SyncJob[]
+
+  @@map("fuentes_datos")
+}
+
+model SyncJob {
+  id                    String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fuenteId              String        @map("fuente_id") @db.Uuid
+  tipo                  SyncJobType
+  status                SyncJobStatus @default(PENDIENTE)
+  inicioAt              DateTime?     @map("inicio_at") @db.Timestamptz
+  finAt                 DateTime?     @map("fin_at") @db.Timestamptz
+  registrosLeidos       Int           @default(0) @map("registros_leidos")
+  registrosInsertados   Int           @default(0) @map("registros_insertados")
+  registrosActualizados Int           @default(0) @map("registros_actualizados")
+  registrosOmitidos     Int           @default(0) @map("registros_omitidos")
+  registrosError        Int           @default(0) @map("registros_error")
+  checksumArchivo       String?       @map("checksum_archivo") @db.VarChar(64)
+  ejecutadoPorId        String?       @map("ejecutado_por_id") @db.Uuid
+  metadata              Json?         @db.JsonB
+  createdAt             DateTime      @default(now()) @map("created_at") @db.Timestamptz
+
+  fuente       DataSource   @relation(fields: [fuenteId], references: [id])
+  ejecutadoPor User?        @relation("SyncExecutedBy", fields: [ejecutadoPorId], references: [id])
+  registros    SyncRecord[]
+  errores      SyncError[]
+
+  @@index([fuenteId, createdAt(sort: Desc)])
+  @@index([status])
+  @@map("sincronizaciones")
+}
+
+model SyncRecord {
+  id           String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  syncJobId    String           @map("sync_id") @db.Uuid
+  entidadTipo  String           @map("entidad_tipo") @db.VarChar(50)
+  entidadId    String?          @map("entidad_id") @db.Uuid
+  claveNatural String           @map("clave_natural") @db.VarChar(100)
+  accion       SyncRecordAction
+  hashAnterior String?          @map("hash_anterior") @db.VarChar(64)
+  hashNuevo    String?          @map("hash_nuevo") @db.VarChar(64)
+  createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz
+
+  syncJob   SyncJob            @relation(fields: [syncJobId], references: [id], onDelete: Cascade)
+  historial RegistroHistorial?
+
+  @@index([syncJobId])
+  @@index([claveNatural])
+  @@index([entidadTipo, entidadId])
+  @@map("sync_registros")
+}
+
+model RegistroHistorial {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  syncRecordId String   @unique @map("sync_registro_id") @db.Uuid
+  entidadTipo  String   @map("entidad_tipo") @db.VarChar(50)
+  entidadId    String   @map("entidad_id") @db.Uuid
+  diffBefore   Json?    @map("diff_before") @db.JsonB
+  diffAfter    Json?    @map("diff_after") @db.JsonB
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  syncRecord SyncRecord @relation(fields: [syncRecordId], references: [id], onDelete: Cascade)
+
+  @@index([entidadTipo, entidadId])
+  @@index([createdAt(sort: Desc)])
+  @@map("registro_historial")
+}
+
+model SyncError {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  syncJobId    String   @map("sync_id") @db.Uuid
+  filaNumero   Int?     @map("fila_numero")
+  campo        String?  @db.VarChar(100)
+  valor        String?  @db.Text
+  errorMensaje String   @map("error_mensaje") @db.Text
+  reintentable Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  syncJob SyncJob @relation(fields: [syncJobId], references: [id], onDelete: Cascade)
+
+  @@index([syncJobId])
+  @@map("sync_errores")
+}
+
+model SyncStagingRecord {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fuenteCodigo  String   @map("fuente_codigo") @db.VarChar(50)
+  claveNatural  String   @map("clave_natural") @db.VarChar(100)
+  payload       Json     @db.JsonB
+  hashContenido String   @map("hash_contenido") @db.VarChar(64)
+  procesado     Boolean  @default(false)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@unique([fuenteCodigo, claveNatural])
+  @@index([fuenteCodigo, procesado])
+  @@map("sync_staging")
+}
+
+// =============================================================================
+// OCR, IA Y ANTIFALSIFICACIÓN
+// =============================================================================
+
+model Image {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String      @map("usuario_id") @db.Uuid
+  storageKey  String      @map("storage_key") @db.VarChar(500)
+  mimeType    String      @map("mime_type") @db.VarChar(50)
+  tamanoBytes Int         @map("tamano_bytes")
+  hashSha256  String      @map("hash_sha256") @db.VarChar(64)
+  origen      ImageOrigin
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ocrResultado OcrResultado?
+
+  @@index([userId])
+  @@index([hashSha256])
+  @@map("imagenes")
+}
+
+model OcrResultado {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  imagenId               String    @unique @map("imagen_id") @db.Uuid
+  textoCrudo             String?   @map("texto_crudo") @db.Text
+  datosEstructurados     Json?     @map("datos_estructurados") @db.JsonB
+  confianzaPromedio      Decimal?  @map("confianza_promedio") @db.Decimal(5, 4)
+  motor                  OcrEngine @default(ML_KIT)
+  procesadoEnDispositivo Boolean   @default(true) @map("procesado_en_dispositivo")
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  imagen      Image        @relation(fields: [imagenId], references: [id], onDelete: Cascade)
+  iaResultado IaResultado?
+
+  @@map("ocr_resultados")
+}
+
+model IaResultado {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ocrResultadoId  String         @unique @map("ocr_resultado_id") @db.Uuid
+  modelo          String         @db.VarChar(50)
+  tipoAnalisis    IaAnalysisType @map("tipo_analisis")
+  coincidencias   Json?          @db.JsonB
+  confianzaGlobal Decimal?       @map("confianza_global") @db.Decimal(5, 4)
+  inconsistencias Json?          @db.JsonB
+  tokensUsados    Int?           @map("tokens_usados")
+  latenciaMs      Int?           @map("latencia_ms")
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz
+
+  ocrResultado OcrResultado         @relation(fields: [ocrResultadoId], references: [id], onDelete: Cascade)
+  alerta       AlertaFalsificacion?
+
+  @@map("ia_resultados")
+}
+
+model AlertaFalsificacion {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  iaResultadoId    String         @unique @map("ia_resultado_id") @db.Uuid
+  nivelRiesgo      FraudRiskLevel @map("nivel_riesgo")
+  reglasDisparadas Json           @map("reglas_disparadas") @db.JsonB
+  mensajeUsuario   String         @map("mensaje_usuario") @db.Text
+  requiereReporte  Boolean        @default(false) @map("requiere_reporte")
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz
+
+  iaResultado IaResultado @relation(fields: [iaResultadoId], references: [id], onDelete: Cascade)
+
+  @@index([nivelRiesgo])
+  @@map("alertas_falsificacion")
+}
+
+// =============================================================================
+// USUARIO: FAVORITOS E HISTORIAL
+// =============================================================================
+
+model Favorite {
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String     @map("usuario_id") @db.Uuid
+  entidadTipo EntityType @map("entidad_tipo")
+  entidadId   String     @map("entidad_id") @db.Uuid
+  notas       String?    @db.Text
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, entidadTipo, entidadId])
+  @@index([userId])
+  @@map("favoritos")
+}
+
+model QueryHistory {
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String      @map("usuario_id") @db.Uuid
+  tipoBusqueda SearchType  @map("tipo_busqueda")
+  query        String      @db.VarChar(500)
+  resultadoId  String?     @map("resultado_id") @db.Uuid
+  entidadTipo  EntityType? @map("entidad_tipo")
+  metadata     Json?       @db.JsonB
+  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([tipoBusqueda])
+  @@map("historial_consultas")
+}
+
+// =============================================================================
+// AUDITORÍA
+// =============================================================================
+
+model AuditLog {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String?  @map("usuario_id") @db.Uuid
+  accion    String   @db.VarChar(100)
+  recurso   String?  @db.VarChar(100)
+  recursoId String?  @map("recurso_id") @db.Uuid
+  ipAddress String?  @map("ip_address") @db.VarChar(45)
+  userAgent String?  @map("user_agent") @db.Text
+  metadata  Json?    @db.JsonB
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([accion])
+  @@index([recurso, recursoId])
+  @@index([createdAt(sort: Desc)])
+  @@map("auditorias")
+}

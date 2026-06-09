@@ -1,0 +1,31 @@
+{
+  "name": "@pharmacol/database",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Prisma schema, migraciones y seeds — PharmaCol",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "db:generate": "bash ../scripts/run-with-env.sh prisma generate",
+    "db:migrate": "bash ../scripts/run-with-env.sh prisma migrate dev",
+    "db:migrate:deploy": "bash ../scripts/run-with-env.sh prisma migrate deploy",
+    "db:seed": "bash ../scripts/run-with-env.sh tsx prisma/seed.ts",
+    "db:reset": "bash ../scripts/run-with-env.sh prisma migrate reset --force",
+    "db:studio": "bash ../scripts/run-with-env.sh prisma studio",
+    "db:push": "bash ../scripts/run-with-env.sh prisma db push",
+    "postinstall": "bash ../scripts/run-with-env.sh prisma generate",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.9.0"
+  },
+  "devDependencies": {
+    "prisma": "^6.9.0",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  },
+  "prisma": {
+    "schema": "prisma/schema.prisma",
+    "seed": "tsx prisma/seed.ts"
+  }
+}

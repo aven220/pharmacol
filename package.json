@@ -1,0 +1,39 @@
+{
+  "name": "pharmacol",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Plataforma farmacéutica profesional para Colombia — INVIMA, OCR, IA",
+  "scripts": {
+    "db:generate": "pnpm --filter @pharmacol/database db:generate",
+    "db:migrate": "pnpm --filter @pharmacol/database db:migrate:deploy",
+    "db:migrate:dev": "pnpm --filter @pharmacol/database db:migrate",
+    "db:migrate:deploy": "pnpm --filter @pharmacol/database db:migrate:deploy",
+    "db:seed": "pnpm --filter @pharmacol/database db:seed",
+    "db:studio": "pnpm --filter @pharmacol/database db:studio",
+    "db:reset": "pnpm --filter @pharmacol/database db:reset",
+    "db:setup": "bash scripts/setup-db.sh",
+    "dev:backend": "pnpm --filter @pharmacol/backend dev",
+    "build:backend": "pnpm --filter @pharmacol/backend build",
+    "dev:mobile-expo": "pnpm --filter @pharmacol/mobile-expo dev",
+    "check:mobile": "bash scripts/check-mobile-connection.sh",
+    "sync:invima": "bash scripts/sync-invima.sh",
+    "backfill:presentaciones": "bash scripts/run-with-env.sh npx tsx ../scripts/backfill-presentaciones.ts",
+    "auth:token": "bash scripts/get-admin-token.sh",
+    "dev:admin": "pnpm --filter @pharmacol/admin dev",
+    "build:admin": "pnpm --filter @pharmacol/admin build",
+    "dev:mobile": "cd apps/mobile && flutter run",
+    "test:backend": "pnpm --filter @pharmacol/backend test",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "build": "turbo run build"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.4",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.15.0"
+}
