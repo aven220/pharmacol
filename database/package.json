@@ -13,7 +13,6 @@
     "db:reset": "bash ../scripts/run-with-env.sh prisma migrate reset --force",
     "db:studio": "bash ../scripts/run-with-env.sh prisma studio",
     "db:push": "bash ../scripts/run-with-env.sh prisma db push",
-    "postinstall": "prisma generate",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
