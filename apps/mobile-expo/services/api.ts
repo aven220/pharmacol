@@ -15,7 +15,7 @@ export const authClient = axios.create({ timeout: 30000 });
 let baseUrlReady: Promise<string> | null = null;
 
 export async function applyApiBaseUrl(url?: string): Promise<string> {
-  const baseURL = normalizeApiUrl(url ?? (await getApiUrl()));
+  const baseURL = normalizeApiUrl(url ?? getApiUrl());
   api.defaults.baseURL = baseURL;
   ocrApi.defaults.baseURL = baseURL;
   authClient.defaults.baseURL = baseURL;

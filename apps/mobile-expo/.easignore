@@ -1,0 +1,6 @@
+# Reducir tamaño del upload EAS (monorepo)
+.git
+**/.turbo
+**/dist
+infra/backups
+**/*.log

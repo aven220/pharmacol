@@ -12,13 +12,8 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import {
-  applyApiBaseUrl,
-  checkServerHealth,
-  loginApi,
-  getErrorMessage,
-} from '@/services/api';
-import Constants from 'expo-constants';
+import { applyApiBaseUrl, checkServerHealth, loginApi, getErrorMessage } from '@/services/api';
+import { PRODUCTION_API_URL } from '@/config/api';
 import { useAuthStore } from '@/store/auth.store';
 
 export default function LoginScreen() {
@@ -26,85 +21,39 @@ export default function LoginScreen() {
   const setSession = useAuthStore((s) => s.setSession);
   const [email, setEmail] = useState('admin@pharmacol.co');
   const [password, setPassword] = useState('admin123');
-  const [apiUrlInput, setApiUrlInput] = useState(API_URL_HINT);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [serverOk, setServerOk] = useState<boolean | null>(null);
   const [checking, setChecking] = useState(true);
-  const [debugInfo, setDebugInfo] = useState('');
-
-  const isExpoGo = Constants.appOwnership === 'expo';
-
-  async function testConnection(urlOverride?: string) {
-    setChecking(true);
-    setError(null);
-    const url = normalizeApiUrl(urlOverride ?? apiUrlInput);
-    setApiUrlInput(url);
-    await setApiUrlOverride(url);
-    await applyApiBaseUrl(url);
-    const result = await checkServerHealth(url);
-    setServerOk(result.ok);
-    if (!result.ok) {
-      const sslHint =
-        /network request failed|certificate|ssl|handshake|trust/i.test(result.error ?? '')
-          ? '\n\nEl servidor usa HTTPS autofirmado. Expo Go no puede conectar — instala la app nativa (ver ayuda abajo).'
-          : '';
-      setError((result.error ?? 'No se puede conectar al backend') + sslHint);
-    }
-    setChecking(false);
-  }
 
   useEffect(() => {
     (async () => {
-      const saved = await getApiUrlOverride();
-      const url = saved ?? (await getApiUrl());
-      setApiUrlInput(url);
-      setDebugInfo(getExpoDebugInfo());
-      await testConnection(url);
+      setChecking(true);
+      await applyApiBaseUrl();
+      const result = await checkServerHealth();
+      setServerOk(result.ok);
+      if (!result.ok) {
+        setError(result.error ?? 'No se puede conectar al servidor');
+      }
+      setChecking(false);
     })();
   }, []);
 
   async function onSubmit() {
     if (!serverOk) {
-      setError('Primero pulsa "Probar" y verifica conexión verde');
+      setError('Sin conexión al servidor. Verifica tu red e intenta de nuevo.');
       return;
     }
     setLoading(true);
     setError(null);
     try {
-      const url = normalizeApiUrl(apiUrlInput);
-      await setApiUrlOverride(url);
-      await applyApiBaseUrl(url);
-      const { tokens, user } = await loginApi(email.trim(), password, url);
+      const { tokens, user } = await loginApi(email.trim(), password);
       await setSession(user, tokens);
       router.replace('/(tabs)');
     } catch (e) {
       setError(getErrorMessage(e, 'Credenciales inválidas'));
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function resetUrl() {
-    await setApiUrlOverride(null);
-    const url = PRODUCTION_API_URL;
-    setApiUrlInput(url);
-    await testConnection(url);
-  }
-
-  function useProductionUrl() {
-    setApiUrlInput(PRODUCTION_API_URL);
-    testConnection(PRODUCTION_API_URL);
-  }
-
-  function useAutoIp() {
-    const host = getExpoDevHost();
-    if (host) {
-      const url = normalizeApiUrl(`http://${host}:3005`);
-      setApiUrlInput(url);
-      testConnection(url);
-    } else {
-      setError(`No se detectó IP de Expo. Usa: ${PRODUCTION_API_URL}`);
     }
   }
 
@@ -128,33 +77,6 @@ export default function LoginScreen() {
           )}
         </View>
 
-        <Text style={styles.label}>URL del servidor (editable)</Text>
-        <TextInput
-          style={styles.input}
-          value={apiUrlInput}
-          onChangeText={setApiUrlInput}
-          autoCapitalize="none"
-          autoCorrect={false}
-          placeholder={PRODUCTION_API_URL}
-        />
-        <View style={styles.row}>
-          <Pressable style={styles.smallBtn} onPress={() => testConnection()}>
-            <Text style={styles.smallBtnText}>Probar</Text>
-          </Pressable>
-          <Pressable style={styles.smallBtn} onPress={useAutoIp}>
-            <Text style={styles.smallBtnText}>Auto IP</Text>
-          </Pressable>
-          <Pressable style={styles.smallBtn} onPress={useProductionUrl}>
-            <Text style={styles.smallBtnText}>Producción</Text>
-          </Pressable>
-          <Pressable style={styles.smallBtn} onPress={resetUrl}>
-            <Text style={styles.smallBtnText}>Reset</Text>
-          </Pressable>
-        </View>
-        <Text style={styles.hintUrl}>
-          Producción: {PRODUCTION_API_URL} (sin /health al final)
-        </Text>
-
         <TextInput
           style={styles.input}
           placeholder="Correo"
@@ -173,7 +95,11 @@ export default function LoginScreen() {
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        <Pressable style={styles.button} onPress={onSubmit} disabled={loading || checking}>
+        <Pressable
+          style={styles.button}
+          onPress={onSubmit}
+          disabled={loading || checking || !serverOk}
+        >
           {loading ? (
             <ActivityIndicator color="#fff" />
           ) : (
@@ -182,38 +108,13 @@ export default function LoginScreen() {
         </Pressable>
 
         {!serverOk && !checking ? (
-          <View style={styles.help}>
-            <Text style={styles.helpTitle}>
-              {isExpoGo ? 'Expo Go + HTTPS autofirmado' : 'Conexión al servidor'}
-            </Text>
-            <Text style={styles.helpText}>
-              {isExpoGo ? (
-                <>
-                  El navegador del celular acepta el certificado;{' '}
-                  <Text style={{ fontWeight: '700' }}>Expo Go no</Text>.{'\n\n'}
-                  Instala la app nativa (una sola vez en tu Mac):{'\n'}
-                  1. bash scripts/prepare-mobile-cert.sh{'\n'}
-                  2. cd apps/mobile-expo{'\n'}
-                  3. pnpm install{'\n'}
-                  4. npx expo prebuild --clean{'\n'}
-                  5. npx expo run:android{'\n\n'}
-                  Teléfono con USB + depuración. Luego abre la app{' '}
-                  <Text style={{ fontWeight: '700' }}>PharmaCol</Text> (no Expo Go).
-                </>
-              ) : (
-                <>
-                  1. Pulsa <Text style={{ fontWeight: '700' }}>Producción</Text> →{'\n'}
-                  {PRODUCTION_API_URL}{'\n\n'}
-                  2. Pulsa <Text style={{ fontWeight: '700' }}>Probar</Text> → verde{'\n\n'}
-                  3. Login: admin@pharmacol.co / admin123
-                </>
-              )}
-            </Text>
-          </View>
+          <Text style={styles.help}>
+            Comprueba tu conexión a internet. El servidor está configurado en la app.
+          </Text>
         ) : null}
 
         {__DEV__ ? (
-          <Text style={styles.debug}>Debug: {debugInfo}</Text>
+          <Text style={styles.debug}>API: {PRODUCTION_API_URL}</Text>
         ) : null}
       </ScrollView>
     </KeyboardAvoidingView>
@@ -224,21 +125,10 @@ const styles = StyleSheet.create({
   container: { flexGrow: 1, justifyContent: 'center', padding: 24, backgroundColor: '#fff' },
   title: { fontSize: 28, fontWeight: '700', textAlign: 'center', marginTop: 12 },
   subtitle: { textAlign: 'center', color: '#666', marginBottom: 16 },
-  statusBox: { alignItems: 'center', marginBottom: 12 },
+  statusBox: { alignItems: 'center', marginBottom: 20 },
   statusText: { fontSize: 14, fontWeight: '600' },
   statusOk: { color: '#2e7d32' },
   statusFail: { color: '#c62828' },
-  label: { fontSize: 13, fontWeight: '600', color: '#444', marginBottom: 6 },
-  row: { flexDirection: 'row', gap: 8, marginBottom: 8 },
-  hintUrl: { fontSize: 11, color: '#888', marginBottom: 16, textAlign: 'center' },
-  smallBtn: {
-    flex: 1,
-    backgroundColor: '#e8f4f6',
-    padding: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  smallBtnText: { color: '#006874', fontWeight: '600', fontSize: 13 },
   input: {
     borderWidth: 1,
     borderColor: '#ddd',
@@ -256,14 +146,6 @@ const styles = StyleSheet.create({
   },
   buttonText: { color: '#fff', fontWeight: '600', fontSize: 16 },
   error: { color: '#c62828', marginBottom: 8, textAlign: 'center', fontSize: 13 },
-  help: {
-    marginTop: 20,
-    backgroundColor: '#fff8e1',
-    padding: 12,
-    borderRadius: 8,
-  },
-  helpTitle: { fontWeight: '600', fontSize: 13, marginBottom: 6 },
-  helpUrl: { fontSize: 12, color: '#006874', marginBottom: 8 },
-  helpText: { fontSize: 12, color: '#666', lineHeight: 18 },
-  debug: { marginTop: 16, fontSize: 10, color: '#bbb' },
+  help: { marginTop: 16, fontSize: 12, color: '#888', textAlign: 'center', lineHeight: 18 },
+  debug: { marginTop: 16, fontSize: 10, color: '#bbb', textAlign: 'center' },
 });

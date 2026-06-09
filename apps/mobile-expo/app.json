@@ -2,12 +2,15 @@
   "expo": {
     "name": "PharmaCol",
     "slug": "pharmacol",
+    "owner": "aven2009",
     "version": "0.1.0",
     "orientation": "portrait",
     "scheme": "pharmacol",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
+    "icon": "./assets/icon.png",
     "splash": {
+      "image": "./assets/icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#006874"
     },
@@ -17,15 +20,15 @@
     },
     "android": {
       "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#006874"
       },
-      "package": "co.pharmacol.app",
-      "usesCleartextTraffic": true
+      "package": "co.pharmacol.app"
     },
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "expo-dev-client"
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true

@@ -1,0 +1,37 @@
+{
+  "cli": {
+    "version": ">= 13.0.0",
+    "appVersionSource": "local"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_DEV_CLIENT": "1",
+        "EXPO_PUBLIC_API_URL": "https://20.5.19.8/pharmacol/v1"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "node": "22.11.0",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://20.5.19.8/pharmacol/v1"
+      }
+    },
+    "production": {
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://20.5.19.8/pharmacol/v1"
+      }
+    }
+  }
+}
