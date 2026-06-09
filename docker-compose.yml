@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: pharmacol
-      POSTGRES_PASSWORD: pharmacol_dev
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pharmacol_dev}
       POSTGRES_DB: pharmacol
     ports:
       - "5433:5432"

@@ -2,7 +2,7 @@
 # Obtiene un JWT válido para usar en curl
 set -euo pipefail
 
-API="${PHARMACOL_API:-http://localhost:3000/v1}"
+API="${PHARMACOL_API:-http://localhost:3005/v1}"
 EMAIL="${PHARMACOL_EMAIL:-admin@pharmacol.co}"
 PASSWORD="${PHARMACOL_PASSWORD:-admin123}"
 

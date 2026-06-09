@@ -23,7 +23,8 @@ COPY --from=builder --chown=nestjs:nodejs /app/apps/backend/dist ./dist
 COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/apps/backend/package.json ./package.json
 USER nestjs
-EXPOSE 3000
+EXPOSE 3005
+ENV API_PORT=3005
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -qO- http://localhost:3000/v1/health || exit 1
+  CMD wget -qO- http://localhost:3005/v1/health || exit 1
 CMD ["node", "dist/main.js"]
