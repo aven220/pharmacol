@@ -6,6 +6,24 @@ const OVERRIDE_KEY = 'pharmacol_api_url';
 export function normalizeApiUrl(input: string): string {
   let url = input.trim().replace(/\/+$/, '');
   url = url.replace(/\/health$/i, '');
+
+  // Corregir URL de producción sin subpath /pharmacol
+  try {
+    const withProto = url.match(/^https?:\/\//i) ? url : `https://${url}`;
+    const parsed = new URL(withProto);
+    if (
+      parsed.hostname === '20.5.19.8' &&
+      !parsed.pathname.includes('/pharmacol')
+    ) {
+      parsed.pathname = '/pharmacol/v1';
+      url = `${parsed.origin}${parsed.pathname}`.replace(/\/+$/, '');
+    } else {
+      url = `${parsed.origin}${parsed.pathname}`.replace(/\/+$/, '');
+    }
+  } catch {
+    // mantener url tal cual si no es URL válida
+  }
+
   if (!url.endsWith('/v1')) {
     url = `${url}/v1`;
   }
@@ -57,7 +75,18 @@ export async function getApiUrlOverride(): Promise<string | null> {
   if (cachedOverride !== undefined) return cachedOverride;
   try {
     const raw = await SecureStore.getItemAsync(OVERRIDE_KEY);
-    cachedOverride = raw ? normalizeApiUrl(raw) : null;
+    if (!raw) {
+      cachedOverride = null;
+      return null;
+    }
+    const normalized = normalizeApiUrl(raw);
+    // Overrides locales no sirven fuera del servidor
+    if (/127\.0\.0\.1|localhost/i.test(normalized) && !__DEV__) {
+      cachedOverride = null;
+      await SecureStore.deleteItemAsync(OVERRIDE_KEY);
+      return null;
+    }
+    cachedOverride = normalized;
   } catch {
     cachedOverride = null;
   }

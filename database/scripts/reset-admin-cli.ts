@@ -4,12 +4,14 @@
  */
 import { PrismaClient } from '@prisma/client';
 import { seedAdminUser } from '../prisma/seeds/admin-user';
+import { seedDataSources } from '../prisma/seeds/fuentes-datos';
 import { seedRolesAndPermissions } from '../prisma/seeds/roles-permissions';
 
 async function main(): Promise<void> {
   const prisma = new PrismaClient();
   try {
     await seedRolesAndPermissions(prisma);
+    await seedDataSources(prisma);
     await seedAdminUser(prisma);
 
     const email = process.env.SEED_ADMIN_EMAIL ?? 'admin@pharmacol.co';

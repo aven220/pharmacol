@@ -24,22 +24,28 @@ export default function SyncPage() {
   const [history, setHistory] = useState<{ items: SyncJob[] } | null>(null);
   const [fuentes, setFuentes] = useState<Array<{ codigo: string; nombre: string; activo: boolean }>>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [actionId, setActionId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   async function load() {
-    const [h, f] = await Promise.all([fetchSyncHistory(), fetchFuentes()]);
-    setHistory(h);
-    setFuentes(f);
-    const inProgress = (h.items ?? []).some((j: SyncJob) => j.status === 'EN_PROCESO');
-    if (inProgress && !pollRef.current) {
-      pollRef.current = setInterval(() => {
-        fetchSyncHistory().then(setHistory).catch(console.error);
-      }, 5000);
-    } else if (!inProgress && pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
+    setLoadError(null);
+    try {
+      const [h, f] = await Promise.all([fetchSyncHistory(), fetchFuentes()]);
+      setHistory(h);
+      setFuentes(Array.isArray(f) ? f : []);
+      const inProgress = (h.items ?? []).some((j: SyncJob) => j.status === 'EN_PROCESO');
+      if (inProgress && !pollRef.current) {
+        pollRef.current = setInterval(() => {
+          fetchSyncHistory().then(setHistory).catch(console.error);
+        }, 5000);
+      } else if (!inProgress && pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    } catch (e) {
+      setLoadError(getErrorMessage(e));
     }
   }
 
@@ -109,6 +115,11 @@ export default function SyncPage() {
   return (
     <div>
       <h2>Sincronización INVIMA</h2>
+      {loadError ? (
+        <p style={{ background: '#ffebee', padding: 12, borderRadius: 8, color: '#c62828' }}>
+          Error cargando datos: {loadError}
+        </p>
+      ) : null}
       {message ? <p style={{ background: '#e8f4f6', padding: 12, borderRadius: 8 }}>{message}</p> : null}
       <div className="card">
         <h3>Fuentes activas</h3>
@@ -116,6 +127,12 @@ export default function SyncPage() {
           Para <strong>medicamentos</strong> usa <code>INVIMA_CUM_VIGENTES</code>.
           Omitidos altos en re-sync es normal (ya existían). Insertados 0 en dispositivos = bug corregido → usa Reimportar.
         </p>
+        {!loadError && fuentes.filter((f) => f.activo).length === 0 ? (
+          <p style={{ color: '#e65100', fontSize: 13 }}>
+            No hay fuentes activas en la BD. En el servidor ejecuta:{' '}
+            <code>bash scripts/seed-fuentes.sh</code>
+          </p>
+        ) : null}
         {fuentes.filter((f) => f.activo).map((f) => (
           <div key={f.codigo} style={{ marginBottom: 12 }}>
             <strong>{f.nombre}</strong> ({f.codigo})

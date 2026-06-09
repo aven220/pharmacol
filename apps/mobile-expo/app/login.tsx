@@ -90,9 +90,14 @@ export default function LoginScreen() {
 
   async function resetUrl() {
     await setApiUrlOverride(null);
-    const url = normalizeApiUrl(await getApiUrl());
+    const url = PRODUCTION_API_URL;
     setApiUrlInput(url);
     await testConnection(url);
+  }
+
+  function useProductionUrl() {
+    setApiUrlInput(PRODUCTION_API_URL);
+    testConnection(PRODUCTION_API_URL);
   }
 
   function useAutoIp() {
@@ -142,6 +147,9 @@ export default function LoginScreen() {
           <Pressable style={styles.smallBtn} onPress={useAutoIp}>
             <Text style={styles.smallBtnText}>Auto IP</Text>
           </Pressable>
+          <Pressable style={styles.smallBtn} onPress={useProductionUrl}>
+            <Text style={styles.smallBtnText}>Producción</Text>
+          </Pressable>
           <Pressable style={styles.smallBtn} onPress={resetUrl}>
             <Text style={styles.smallBtnText}>Reset</Text>
           </Pressable>
@@ -178,14 +186,16 @@ export default function LoginScreen() {
 
         {!serverOk && !checking ? (
           <View style={styles.help}>
-            <Text style={styles.helpTitle}>✓ Chrome abre /v1/health → la red funciona</Text>
+            <Text style={styles.helpTitle}>Conexión al servidor</Text>
             <Text style={styles.helpText}>
-              El 404 en /v1 solo es normal (no hay ruta raíz).{'\n\n'}
-              En la app:{'\n'}
-              1. URL = {PRODUCTION_API_URL}{'\n'}
-              2. Pulsa Probar → debe quedar verde{'\n'}
-              3. Login: admin@pharmacol.co / admin123{'\n'}
-              4. Si falla, pulsa Reset y reinicia Expo
+              1. Pulsa <Text style={{ fontWeight: '700' }}>Producción</Text> → URL:{'\n'}
+              {PRODUCTION_API_URL}{'\n\n'}
+              2. Pulsa <Text style={{ fontWeight: '700' }}>Probar</Text> → debe quedar verde{'\n\n'}
+              3. Login: admin@pharmacol.co / admin123{'\n\n'}
+              Si falla con error de red/SSL: el certificado HTTPS del servidor es autofirmado.
+              Abre en Chrome del teléfono:{'\n'}
+              https://20.5.19.8/pharmacol/v1/health{'\n'}
+              Acepta la advertencia de seguridad y vuelve a Probar en la app.
             </Text>
           </View>
         ) : null}
