@@ -24,6 +24,7 @@
     "connect:pharma": "bash scripts/connect-pharma-network.sh",
     "patch:pharma-nginx": "bash scripts/patch-pharma-edge-nginx.sh",
     "reset:admin": "bash scripts/reset-admin.sh",
+    "diagnose:auth": "bash scripts/diagnose-auth.sh",
     "find:nginx": "bash scripts/find-aas-nginx.sh",
     "ssl:selfsigned": "bash scripts/generate-selfsigned-ip.sh",
     "diagnose:backend": "bash scripts/diagnose-backend.sh",

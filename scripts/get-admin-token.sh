@@ -2,11 +2,14 @@
 # Obtiene un JWT válido para usar en curl
 set -euo pipefail
 
-BASE_PATH="${PHARMACOL_BASE_PATH:-/pharmacol}"
-HTTP_PORT="${PHARMACOL_HTTP_PORT:-8080}"
-API="${PHARMACOL_API_LOCAL:-${PHARMACOL_API:-http://127.0.0.1:${HTTP_PORT}${BASE_PATH}/v1}}"
-EMAIL="${PHARMACOL_EMAIL:-admin@pharmacol.co}"
-PASSWORD="${PHARMACOL_PASSWORD:-admin123}"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck disable=SC1091
+source "$ROOT/scripts/lib/pharmacol-api-url.sh"
+
+API="$(pharmacol_resolve_api_local "$ROOT")"
+pharmacol_load_env "$ROOT"
+EMAIL="${PHARMACOL_EMAIL:-${SEED_ADMIN_EMAIL:-admin@pharmacol.co}}"
+PASSWORD="${PHARMACOL_PASSWORD:-${SEED_ADMIN_PASSWORD:-admin123}}"
 
 TOKEN=$(curl -sf -X POST "$API/auth/login" \
   -H "Content-Type: application/json" \
