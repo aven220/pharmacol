@@ -2,11 +2,19 @@
 # Sincroniza datos INVIMA desde datos.gov.co hacia PostgreSQL
 set -euo pipefail
 
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [[ -f "$ROOT/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$ROOT/.env"
+  set +a
+fi
+
 BASE_PATH="${PHARMACOL_BASE_PATH:-/pharmacol}"
 HTTP_PORT="${PHARMACOL_HTTP_PORT:-8080}"
 API="${PHARMACOL_API_LOCAL:-${PHARMACOL_API:-http://127.0.0.1:${HTTP_PORT}${BASE_PATH}/v1}}"
-EMAIL="${PHARMACOL_EMAIL:-admin@pharmacol.co}"
-PASSWORD="${PHARMACOL_PASSWORD:-admin123}"
+EMAIL="${PHARMACOL_EMAIL:-${SEED_ADMIN_EMAIL:-admin@pharmacol.co}}"
+PASSWORD="${PHARMACOL_PASSWORD:-${SEED_ADMIN_PASSWORD:-admin123}}"
 FUENTE="${1:-INVIMA_CUM_VIGENTES}"
 MODE="${2:-sync}"  # sync = síncrono | async = cola BullMQ
 FORCE="${3:-false}"
