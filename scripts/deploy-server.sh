@@ -55,11 +55,12 @@ set +a
 API_PORT="${API_PORT:-3005}"
 PHARMACOL_HTTP_PORT="${PHARMACOL_HTTP_PORT:-8080}"
 PHARMACOL_SERVER_IP="${PHARMACOL_SERVER_IP:-20.5.19.8}"
+PHARMACOL_BASE_PATH="${PHARMACOL_BASE_PATH:-/pharmacol}"
 PHARMACOL_DOMAIN="${PHARMACOL_DOMAIN:-${PHARMACOL_SERVER_IP}}"
 PHARMACOL_HOST="${PHARMACOL_HOST:-${PHARMACOL_DOMAIN}}"
-PHARMACOL_PUBLIC_URL="${PHARMACOL_PUBLIC_URL:-https://${PHARMACOL_HOST}}"
+PHARMACOL_PUBLIC_URL="${PHARMACOL_PUBLIC_URL:-https://${PHARMACOL_HOST}${PHARMACOL_BASE_PATH}}"
 PHARMACOL_API="${PHARMACOL_API:-${PHARMACOL_PUBLIC_URL}/v1}"
-PHARMACOL_API_LOCAL="${PHARMACOL_API_LOCAL:-http://127.0.0.1:${PHARMACOL_HTTP_PORT}/v1}"
+PHARMACOL_API_LOCAL="${PHARMACOL_API_LOCAL:-http://127.0.0.1:${PHARMACOL_HTTP_PORT}${PHARMACOL_BASE_PATH}/v1}"
 
 echo "==> PharmaCol — despliegue servidor (HTTPS)"
 echo "    Público: ${PHARMACOL_PUBLIC_URL}"
@@ -106,8 +107,8 @@ $COMPOSE up -d --build backend web
 
 echo "==> 5/5 Verificando salud..."
 sleep 5
-if curl -sf "http://127.0.0.1:${PHARMACOL_HTTP_PORT}/v1/health" >/dev/null; then
-  echo "    ✓ Web/API OK  http://127.0.0.1:${PHARMACOL_HTTP_PORT}/v1/health"
+if curl -sf "http://127.0.0.1:${PHARMACOL_HTTP_PORT}${PHARMACOL_BASE_PATH}/v1/health" >/dev/null; then
+  echo "    ✓ Web/API OK  http://127.0.0.1:${PHARMACOL_HTTP_PORT}${PHARMACOL_BASE_PATH}/v1/health"
 else
   echo "    ⚠ Web no responde aún — revisa: $COMPOSE logs web backend"
 fi
@@ -126,8 +127,8 @@ echo "  API pública:     ${PHARMACOL_API}"
 echo "  Swagger:         ${PHARMACOL_PUBLIC_URL}/docs"
 echo "  Docker local:    ${PHARMACOL_API_LOCAL}"
 echo ""
-echo "  Nginx host (si aún no):"
-echo "    PHARMACOL_DOMAIN=${PHARMACOL_DOMAIN} bash scripts/install-host-nginx.sh"
+  echo "  Nginx (convive con A-AS Delivery):"
+  echo "    bash scripts/install-nginx-coexist.sh"
 echo ""
 echo "  Login admin por defecto (seed): admin@pharmacol.co / admin123"
 echo "  Cambia la contraseña tras el primer acceso."
@@ -138,12 +139,10 @@ if ! $RUN_SYNC; then
   echo "  o Admin → Sincronización → Ejecutar"
 fi
 
-if curl -sf -m 5 "${PHARMACOL_PUBLIC_URL}/v1/health" >/dev/null 2>&1; then
-  echo "  ✓ HTTPS público OK  ${PHARMACOL_PUBLIC_URL}/v1/health"
-elif curl -sf -m 5 -k "${PHARMACOL_PUBLIC_URL}/v1/health" >/dev/null 2>&1; then
-  echo "  ✓ HTTPS OK (certificado auto-firmado)"
+if curl -sf -m 5 -k "${PHARMACOL_API}/health" >/dev/null 2>&1; then
+  echo "  ✓ HTTPS público OK  ${PHARMACOL_API}/health"
 else
-  echo "  ⚠ HTTPS aún no responde — configura nginx:"
-  echo "    PHARMACOL_DOMAIN=${PHARMACOL_DOMAIN} bash scripts/install-host-nginx.sh"
+  echo "  ⚠ HTTPS /pharmacol/ aún no responde — añade include en nginx de A-AS:"
+  echo "    bash scripts/install-nginx-coexist.sh"
 fi
 echo "════════════════════════════════════════════════════════"

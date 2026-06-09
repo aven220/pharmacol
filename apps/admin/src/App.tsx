@@ -43,8 +43,10 @@ function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  const basename = (import.meta.env.BASE_URL || '/').replace(/\/$/, '') || undefined;
+
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={basename}>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route

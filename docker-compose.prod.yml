@@ -74,7 +74,9 @@ services:
       context: .
       dockerfile: infra/docker/Dockerfile.web
       args:
-        VITE_API_URL: ${VITE_API_URL:-/v1}
+        VITE_API_URL: ${VITE_API_URL:-/pharmacol/v1}
+        VITE_BASE_PATH: ${VITE_BASE_PATH:-/pharmacol/}
+        NGINX_CONF: ${PHARMACOL_NGINX_CONF:-web-subpath.conf}
     container_name: pharmacol-web
     restart: unless-stopped
     depends_on:
