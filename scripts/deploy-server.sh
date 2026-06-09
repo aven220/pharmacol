@@ -42,7 +42,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ ! -f .env ]]; then
-  echo "ERROR: Falta .env — copia .env.example y configura contraseñas."
+  echo "ERROR: Falta .env — ejecuta: bash scripts/setup-server-env.sh"
+  echo "       o copia: cp .env.server.example .env"
   exit 1
 fi
 
@@ -53,12 +54,15 @@ set +a
 
 API_PORT="${API_PORT:-3005}"
 PHARMACOL_HTTP_PORT="${PHARMACOL_HTTP_PORT:-8080}"
-PHARMACOL_HOST="${PHARMACOL_HOST:-20.5.19.8}"
+PHARMACOL_DOMAIN="${PHARMACOL_DOMAIN:-pharmacol.tudominio.com}"
+PHARMACOL_HOST="${PHARMACOL_HOST:-${PHARMACOL_DOMAIN}}"
 PHARMACOL_PUBLIC_URL="${PHARMACOL_PUBLIC_URL:-https://${PHARMACOL_HOST}}"
 PHARMACOL_API="${PHARMACOL_API:-${PHARMACOL_PUBLIC_URL}/v1}"
+PHARMACOL_API_LOCAL="${PHARMACOL_API_LOCAL:-http://127.0.0.1:${PHARMACOL_HTTP_PORT}/v1}"
 
-echo "==> PharmaCol — despliegue servidor"
-echo "    API interna: :${API_PORT}  |  Portal web: :${PHARMACOL_HTTP_PORT}"
+echo "==> PharmaCol — despliegue servidor (HTTPS)"
+echo "    Público: ${PHARMACOL_PUBLIC_URL}"
+echo "    Docker:  127.0.0.1:${PHARMACOL_HTTP_PORT} → backend :${API_PORT}"
 echo ""
 
 echo "==> 1/5 PostgreSQL + Redis..."
@@ -110,16 +114,19 @@ fi
 if $RUN_SYNC; then
   echo ""
   echo "==> Sync INVIMA (puede tardar 20–40 min)..."
-  PHARMACOL_API="$PHARMACOL_API" bash scripts/sync-invima.sh INVIMA_CUM_VIGENTES sync
+  PHARMACOL_API="$PHARMACOL_API_LOCAL" bash scripts/sync-invima.sh INVIMA_CUM_VIGENTES sync
 fi
 
 echo ""
 echo "════════════════════════════════════════════════════════"
-echo "  Despliegue listo"
+echo "  Despliegue Docker listo"
 echo "  Portal (HTTPS):  ${PHARMACOL_PUBLIC_URL}/"
 echo "  API pública:     ${PHARMACOL_API}"
 echo "  Swagger:         ${PHARMACOL_PUBLIC_URL}/docs"
-echo "  Docker local:    http://127.0.0.1:${PHARMACOL_HTTP_PORT}/ (solo servidor)"
+echo "  Docker local:    ${PHARMACOL_API_LOCAL}"
+echo ""
+echo "  Nginx host (si aún no):"
+echo "    PHARMACOL_DOMAIN=${PHARMACOL_DOMAIN} bash scripts/install-host-nginx.sh"
 echo ""
 echo "  Login admin por defecto (seed): admin@pharmacol.co / admin123"
 echo "  Cambia la contraseña tras el primer acceso."
@@ -128,5 +135,14 @@ if ! $RUN_SYNC; then
   echo "  Cargar medicamentos INVIMA (primera vez):"
   echo "    bash scripts/deploy-server.sh --sync"
   echo "  o Admin → Sincronización → Ejecutar"
+fi
+
+if curl -sf -m 5 "${PHARMACOL_PUBLIC_URL}/v1/health" >/dev/null 2>&1; then
+  echo "  ✓ HTTPS público OK  ${PHARMACOL_PUBLIC_URL}/v1/health"
+elif curl -sf -m 5 -k "${PHARMACOL_PUBLIC_URL}/v1/health" >/dev/null 2>&1; then
+  echo "  ✓ HTTPS OK (certificado auto-firmado)"
+else
+  echo "  ⚠ HTTPS aún no responde — configura nginx:"
+  echo "    PHARMACOL_DOMAIN=${PHARMACOL_DOMAIN} bash scripts/install-host-nginx.sh"
 fi
 echo "════════════════════════════════════════════════════════"
