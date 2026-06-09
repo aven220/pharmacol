@@ -15,6 +15,8 @@
     "dev:backend": "pnpm --filter @pharmacol/backend dev",
     "build:backend": "pnpm --filter @pharmacol/backend build",
     "dev:mobile-expo": "pnpm --filter @pharmacol/mobile-expo dev",
+    "mobile:cert": "bash scripts/prepare-mobile-cert.sh",
+    "mobile:android": "pnpm --filter @pharmacol/mobile-expo android:build",
     "check:mobile": "bash scripts/check-mobile-connection.sh",
     "sync:invima": "bash scripts/sync-invima.sh",
     "backfill:presentaciones": "bash scripts/run-with-env.sh npx tsx ../scripts/backfill-presentaciones.ts",

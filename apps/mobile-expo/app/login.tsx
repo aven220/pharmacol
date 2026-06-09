@@ -18,16 +18,7 @@ import {
   loginApi,
   getErrorMessage,
 } from '@/services/api';
-import {
-  API_URL_HINT,
-  getApiUrl,
-  getApiUrlOverride,
-  getExpoDebugInfo,
-  getExpoDevHost,
-  normalizeApiUrl,
-  PRODUCTION_API_URL,
-  setApiUrlOverride,
-} from '@/config/api';
+import Constants from 'expo-constants';
 import { useAuthStore } from '@/store/auth.store';
 
 export default function LoginScreen() {
@@ -42,6 +33,8 @@ export default function LoginScreen() {
   const [checking, setChecking] = useState(true);
   const [debugInfo, setDebugInfo] = useState('');
 
+  const isExpoGo = Constants.appOwnership === 'expo';
+
   async function testConnection(urlOverride?: string) {
     setChecking(true);
     setError(null);
@@ -52,7 +45,11 @@ export default function LoginScreen() {
     const result = await checkServerHealth(url);
     setServerOk(result.ok);
     if (!result.ok) {
-      setError(result.error ?? 'No se puede conectar al backend');
+      const sslHint =
+        /network request failed|certificate|ssl|handshake|trust/i.test(result.error ?? '')
+          ? '\n\nEl servidor usa HTTPS autofirmado. Expo Go no puede conectar — instala la app nativa (ver ayuda abajo).'
+          : '';
+      setError((result.error ?? 'No se puede conectar al backend') + sslHint);
     }
     setChecking(false);
   }
@@ -186,16 +183,31 @@ export default function LoginScreen() {
 
         {!serverOk && !checking ? (
           <View style={styles.help}>
-            <Text style={styles.helpTitle}>Conexión al servidor</Text>
+            <Text style={styles.helpTitle}>
+              {isExpoGo ? 'Expo Go + HTTPS autofirmado' : 'Conexión al servidor'}
+            </Text>
             <Text style={styles.helpText}>
-              1. Pulsa <Text style={{ fontWeight: '700' }}>Producción</Text> → URL:{'\n'}
-              {PRODUCTION_API_URL}{'\n\n'}
-              2. Pulsa <Text style={{ fontWeight: '700' }}>Probar</Text> → debe quedar verde{'\n\n'}
-              3. Login: admin@pharmacol.co / admin123{'\n\n'}
-              Si falla con error de red/SSL: el certificado HTTPS del servidor es autofirmado.
-              Abre en Chrome del teléfono:{'\n'}
-              https://20.5.19.8/pharmacol/v1/health{'\n'}
-              Acepta la advertencia de seguridad y vuelve a Probar en la app.
+              {isExpoGo ? (
+                <>
+                  El navegador del celular acepta el certificado;{' '}
+                  <Text style={{ fontWeight: '700' }}>Expo Go no</Text>.{'\n\n'}
+                  Instala la app nativa (una sola vez en tu Mac):{'\n'}
+                  1. bash scripts/prepare-mobile-cert.sh{'\n'}
+                  2. cd apps/mobile-expo{'\n'}
+                  3. pnpm install{'\n'}
+                  4. npx expo prebuild --clean{'\n'}
+                  5. npx expo run:android{'\n\n'}
+                  Teléfono con USB + depuración. Luego abre la app{' '}
+                  <Text style={{ fontWeight: '700' }}>PharmaCol</Text> (no Expo Go).
+                </>
+              ) : (
+                <>
+                  1. Pulsa <Text style={{ fontWeight: '700' }}>Producción</Text> →{'\n'}
+                  {PRODUCTION_API_URL}{'\n\n'}
+                  2. Pulsa <Text style={{ fontWeight: '700' }}>Probar</Text> → verde{'\n\n'}
+                  3. Login: admin@pharmacol.co / admin123
+                </>
+              )}
             </Text>
           </View>
         ) : null}
