@@ -11,4 +11,6 @@ COPY scripts/run-with-env.sh ./scripts/run-with-env.sh
 RUN pnpm install --frozen-lockfile --filter @pharmacol/database...
 
 WORKDIR /app/database
+RUN pnpm exec prisma generate
+
 CMD ["pnpm", "exec", "tsx", "prisma/seed.ts"]

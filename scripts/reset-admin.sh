@@ -43,7 +43,7 @@ echo "→ Reset admin en BD..."
 $COMPOSE --profile setup run --rm --build \
   -e SEED_ADMIN_EMAIL="$EMAIL" \
   -e SEED_ADMIN_PASSWORD="$PASSWORD" \
-  seed pnpm exec tsx scripts/reset-admin-cli.ts
+  seed sh -c "pnpm exec prisma generate && pnpm exec tsx scripts/reset-admin-cli.ts"
 
 echo ""
 echo "→ Verificar login..."
