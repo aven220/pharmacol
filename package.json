@@ -22,6 +22,7 @@
     "setup:server": "bash scripts/setup-server-env.sh",
     "install:nginx": "bash scripts/install-nginx-coexist.sh docker",
     "connect:pharma": "bash scripts/connect-pharma-network.sh",
+    "patch:pharma-nginx": "bash scripts/patch-pharma-edge-nginx.sh",
     "find:nginx": "bash scripts/find-aas-nginx.sh",
     "ssl:selfsigned": "bash scripts/generate-selfsigned-ip.sh",
     "diagnose:backend": "bash scripts/diagnose-backend.sh",
