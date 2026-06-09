@@ -5,15 +5,9 @@ const apiUrl = (
   process.env.EXPO_PUBLIC_API_URL || 'https://20.5.19.8/pharmacol/v1'
 ).replace(/\/$/, '');
 
-const isDevClient =
-  process.env.EAS_BUILD_PROFILE === 'development' || process.env.EXPO_DEV_CLIENT === '1';
-
-const basePlugins = (appJson.expo.plugins || []).filter((p) => p !== 'expo-dev-client');
-
 module.exports = {
   expo: {
     ...appJson.expo,
-    plugins: [...basePlugins, ...(isDevClient ? ['expo-dev-client'] : [])],
     android: {
       ...appJson.expo.android,
       versionCode: 1,
