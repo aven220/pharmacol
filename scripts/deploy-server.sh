@@ -60,7 +60,8 @@ PHARMACOL_DOMAIN="${PHARMACOL_DOMAIN:-${PHARMACOL_SERVER_IP}}"
 PHARMACOL_HOST="${PHARMACOL_HOST:-${PHARMACOL_DOMAIN}}"
 PHARMACOL_PUBLIC_URL="${PHARMACOL_PUBLIC_URL:-https://${PHARMACOL_HOST}${PHARMACOL_BASE_PATH}}"
 PHARMACOL_API="${PHARMACOL_API:-${PHARMACOL_PUBLIC_URL}/v1}"
-PHARMACOL_API_LOCAL="${PHARMACOL_API_LOCAL:-http://127.0.0.1:${PHARMACOL_HTTP_PORT}${PHARMACOL_BASE_PATH}/v1}"
+# Siempre desde puerto + subpath (evita .env antiguo sin /pharmacol)
+PHARMACOL_API_LOCAL="http://127.0.0.1:${PHARMACOL_HTTP_PORT}${PHARMACOL_BASE_PATH}/v1"
 
 echo "==> PharmaCol — despliegue servidor (HTTPS)"
 echo "    Público: ${PHARMACOL_PUBLIC_URL}"
@@ -116,7 +117,7 @@ fi
 if $RUN_SYNC; then
   echo ""
   echo "==> Sync INVIMA (puede tardar 20–40 min)..."
-  PHARMACOL_API="$PHARMACOL_API_LOCAL" bash scripts/sync-invima.sh INVIMA_CUM_VIGENTES sync
+  PHARMACOL_API_LOCAL="$PHARMACOL_API_LOCAL" bash scripts/sync-invima.sh INVIMA_CUM_VIGENTES sync
 fi
 
 echo ""

@@ -2,7 +2,9 @@
 # Sincroniza datos INVIMA desde datos.gov.co hacia PostgreSQL
 set -euo pipefail
 
-API="${PHARMACOL_API_LOCAL:-${PHARMACOL_API:-http://127.0.0.1:8080/v1}}"
+BASE_PATH="${PHARMACOL_BASE_PATH:-/pharmacol}"
+HTTP_PORT="${PHARMACOL_HTTP_PORT:-8080}"
+API="${PHARMACOL_API_LOCAL:-${PHARMACOL_API:-http://127.0.0.1:${HTTP_PORT}${BASE_PATH}/v1}}"
 EMAIL="${PHARMACOL_EMAIL:-admin@pharmacol.co}"
 PASSWORD="${PHARMACOL_PASSWORD:-admin123}"
 FUENTE="${1:-INVIMA_CUM_VIGENTES}"
