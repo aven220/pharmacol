@@ -18,11 +18,13 @@
     "preview": {
       "distribution": "internal",
       "node": "22.11.0",
+      "pnpm": "9.15.0",
       "android": {
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://20.5.19.8/pharmacol/v1"
+        "EXPO_PUBLIC_API_URL": "https://20.5.19.8/pharmacol/v1",
+        "NODE_OPTIONS": "--max-old-space-size=4096"
       }
     },
     "production": {

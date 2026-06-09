@@ -2,3 +2,6 @@ packages:
   - "apps/*"
   - "packages/*"
   - "database"
+
+# Requerido para Expo / EAS Build con Gradle (pnpm isolated rompe autolinking)
+nodeLinker: hoisted
