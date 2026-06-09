@@ -21,6 +21,7 @@
     "deploy:server": "bash scripts/deploy-server.sh",
     "setup:server": "bash scripts/setup-server-env.sh",
     "install:nginx": "bash scripts/install-host-nginx.sh",
+    "ssl:selfsigned": "bash scripts/generate-selfsigned-ip.sh",
     "diagnose:backend": "bash scripts/diagnose-backend.sh",
     "fix:postgres-password": "bash scripts/fix-postgres-password.sh",
     "restore:db": "bash scripts/restore-db.sh",
