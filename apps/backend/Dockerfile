@@ -7,7 +7,8 @@ FROM base AS deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 COPY apps/backend/package.json ./apps/backend/
 COPY database/package.json ./database/
-RUN pnpm install --frozen-lockfile --filter @pharmacol/backend...
+# Sin schema Prisma aún; generate se ejecuta en la etapa builder
+RUN pnpm install --frozen-lockfile --filter @pharmacol/backend... --ignore-scripts
 
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules

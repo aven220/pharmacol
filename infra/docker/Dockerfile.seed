@@ -1,0 +1,14 @@
+# Seed inicial (admin, roles, fuentes INVIMA)
+FROM node:20-alpine
+RUN apk add --no-cache bash
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY database ./database
+COPY scripts/run-with-env.sh ./scripts/run-with-env.sh
+
+RUN pnpm install --frozen-lockfile --filter @pharmacol/database...
+
+WORKDIR /app/database
+CMD ["pnpm", "exec", "tsx", "prisma/seed.ts"]
