@@ -25,6 +25,7 @@ import {
   getExpoDebugInfo,
   getExpoDevHost,
   normalizeApiUrl,
+  PRODUCTION_API_URL,
   setApiUrlOverride,
 } from '@/config/api';
 import { useAuthStore } from '@/store/auth.store';
@@ -97,11 +98,11 @@ export default function LoginScreen() {
   function useAutoIp() {
     const host = getExpoDevHost();
     if (host) {
-      const url = normalizeApiUrl(`http://${host}:3000`);
+      const url = normalizeApiUrl(`http://${host}:3005`);
       setApiUrlInput(url);
       testConnection(url);
     } else {
-      setError('No se detectó IP de Expo. Escribe: http://192.168.11.175:3000/v1');
+      setError(`No se detectó IP de Expo. Usa: ${PRODUCTION_API_URL}`);
     }
   }
 
@@ -132,7 +133,7 @@ export default function LoginScreen() {
           onChangeText={setApiUrlInput}
           autoCapitalize="none"
           autoCorrect={false}
-          placeholder="http://192.168.x.x:3000/v1"
+          placeholder={PRODUCTION_API_URL}
         />
         <View style={styles.row}>
           <Pressable style={styles.smallBtn} onPress={() => testConnection()}>
@@ -146,7 +147,7 @@ export default function LoginScreen() {
           </Pressable>
         </View>
         <Text style={styles.hintUrl}>
-          Usa: http://192.168.11.175:3000/v1 (NO /health al final)
+          Producción: {PRODUCTION_API_URL} (sin /health al final)
         </Text>
 
         <TextInput
@@ -181,7 +182,7 @@ export default function LoginScreen() {
             <Text style={styles.helpText}>
               El 404 en /v1 solo es normal (no hay ruta raíz).{'\n\n'}
               En la app:{'\n'}
-              1. URL = http://192.168.11.175:3000/v1{'\n'}
+              1. URL = {PRODUCTION_API_URL}{'\n'}
               2. Pulsa Probar → debe quedar verde{'\n'}
               3. Login: admin@pharmacol.co / admin123{'\n'}
               4. Si falla, pulsa Reset y reinicia Expo

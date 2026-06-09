@@ -5,14 +5,17 @@ const OVERRIDE_KEY = 'pharmacol_api_url';
 
 export function normalizeApiUrl(input: string): string {
   let url = input.trim().replace(/\/+$/, '');
-  // Quitar /health si lo pegaron por error
   url = url.replace(/\/health$/i, '');
-  // Asegurar sufijo /v1
   if (!url.endsWith('/v1')) {
     url = `${url}/v1`;
   }
   return url;
 }
+
+/** URL pública del servidor de producción */
+export const PRODUCTION_API_URL = normalizeApiUrl(
+  process.env.EXPO_PUBLIC_API_URL?.trim() || 'http://20.5.19.8:8080/v1',
+);
 
 /** IP del Mac donde corre Metro — Expo Go la expone automáticamente */
 export function getExpoDevHost(): string | null {
@@ -73,18 +76,19 @@ export async function setApiUrlOverride(url: string | null): Promise<void> {
 }
 
 export function resolveApiUrlSync(): string {
-  const expoHost = getExpoDevHost();
-  if (__DEV__ && expoHost) {
-    return normalizeApiUrl(`http://${expoHost}:3000`);
-  }
-
   const fromExtra = (Constants.expoConfig?.extra as { apiUrl?: string } | undefined)?.apiUrl?.trim();
   const fromEnv = process.env.EXPO_PUBLIC_API_URL?.trim();
 
   if (fromExtra) return normalizeApiUrl(fromExtra);
   if (fromEnv) return normalizeApiUrl(fromEnv);
-  if (__DEV__) return normalizeApiUrl('http://localhost:3000');
-  throw new Error('EXPO_PUBLIC_API_URL no configurada');
+
+  const expoHost = getExpoDevHost();
+  if (__DEV__ && expoHost) {
+    return normalizeApiUrl(`http://${expoHost}:3005`);
+  }
+
+  if (__DEV__) return normalizeApiUrl('http://localhost:3005');
+  return PRODUCTION_API_URL;
 }
 
 export async function getApiUrl(): Promise<string> {
