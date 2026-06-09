@@ -1,46 +1,76 @@
 #!/usr/bin/env bash
-# Instala PharmaCol junto a A-AS Delivery en el mismo HTTPS :443 (ruta /pharmacol/)
+# Instala locations /pharmacol/ para convivir con A-AS Delivery (nginx en Docker o host)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-SOURCE="$ROOT/infra/nginx/pharmacol-locations.conf"
-TARGET="/etc/nginx/pharmacol-locations.conf"
+MODE="${1:-docker}"
 BASE_PATH="${PHARMACOL_BASE_PATH:-/pharmacol}"
 
-echo "==> PharmaCol — convivencia con A-AS Delivery"
-echo "    Ruta pública: https://TU_IP${BASE_PATH}/"
-echo ""
+case "$MODE" in
+  docker|host) ;;
+  -h|--help)
+    echo "Uso: bash scripts/install-nginx-coexist.sh [docker|host]"
+    echo "  docker  — nginx de A-AS en contenedor (default, usa 172.17.0.1:8080)"
+    echo "  host    — nginx instalado en el servidor (usa 127.0.0.1:8080)"
+    exit 0
+    ;;
+  *)
+    echo "Modo desconocido: $MODE (usa docker o host)"
+    exit 1
+    ;;
+esac
 
-if [[ ! -f "$SOURCE" ]]; then
-  echo "ERROR: Falta $SOURCE"
-  exit 1
+if [[ "$MODE" == "docker" ]]; then
+  SOURCE="$ROOT/infra/nginx/pharmacol-locations-docker.conf"
+  TARGET="/tmp/pharmacol-locations.conf"
+  PROXY_NOTE="172.17.0.1:8080 (gateway Docker → host)"
+else
+  SOURCE="$ROOT/infra/nginx/pharmacol-locations.conf"
+  TARGET="/etc/nginx/pharmacol-locations.conf"
+  PROXY_NOTE="127.0.0.1:8080"
 fi
 
-sudo cp "$SOURCE" "$TARGET"
-echo "✓ Copiado → ${TARGET}"
+echo "==> PharmaCol + A-AS Delivery (modo: ${MODE})"
+echo "    Pública: https://20.5.19.8${BASE_PATH}/"
+echo "    Proxy:   ${PROXY_NOTE}"
+echo ""
 
+cp "$SOURCE" "$TARGET"
+echo "✓ Plantilla copiada → ${TARGET}"
+echo ""
+cat "$TARGET"
 echo ""
 echo "════════════════════════════════════════════════════════════"
-echo "  PASO MANUAL — edita el nginx de A-AS Delivery"
-echo "════════════════════════════════════════════════════════════"
-echo ""
-echo "1. Encuentra el archivo nginx del server :443, por ejemplo:"
-echo "   sudo grep -r 'A-AS Delivery' /etc/nginx/ 2>/dev/null"
-echo "   sudo grep -r 'listen 443' /etc/nginx/ 2>/dev/null"
-echo "   docker ps   # si nginx está en contenedor"
-echo ""
-echo "2. Dentro del bloque  server { listen 443 ... }  añade:"
-echo ""
-echo "     include ${TARGET};"
-echo ""
-echo "3. Valida y recarga:"
-echo "     sudo nginx -t && sudo systemctl reload nginx"
-echo "     # o si nginx está en Docker:"
-echo "     docker exec CONTAINER_NGINX nginx -t && docker exec CONTAINER_NGINX nginx -s reload"
-echo ""
-echo "4. Verifica:"
-echo "     curl -k https://20.5.19.8/pharmacol/v1/health"
-echo "     curl -k https://20.5.19.8/   # sigue siendo A-AS Delivery"
+
+if [[ "$MODE" == "docker" ]]; then
+  echo "  NGINX ESTÁ EN DOCKER (no hay nginx en el host)"
+  echo "════════════════════════════════════════════════════════════"
+  echo ""
+  echo "1. Busca el contenedor A-AS:"
+  echo "     bash scripts/find-aas-nginx.sh"
+  echo "     docker ps"
+  echo ""
+  echo "2. Copia el bloque location de arriba al nginx de ESE contenedor."
+  echo "   Suele estar en: /etc/nginx/conf.d/default.conf"
+  echo ""
+  echo "3. Ejemplo — editar montando volumen o entrando al contenedor:"
+  echo "     docker exec -it NOMBRE_CONTENEDOR sh"
+  echo "     vi /etc/nginx/conf.d/default.conf"
+  echo "     nginx -t && nginx -s reload"
+  echo ""
+  echo "4. Si 172.17.0.1 no funciona, prueba IP del host:"
+  echo "     curl http://172.17.0.1:8080/pharmacol/v1/health"
+  echo "     # cambia proxy_pass a http://20.5.19.8:8080/pharmacol/;"
+  echo ""
+  echo "5. Verifica:"
+  echo "     curl -k https://20.5.19.8/pharmacol/v1/health"
+else
+  sudo cp "$SOURCE" /etc/nginx/pharmacol-locations.conf
+  echo "  Añade dentro del server { listen 443 ... } de A-AS:"
+  echo "     include /etc/nginx/pharmacol-locations.conf;"
+  echo "  sudo nginx -t && sudo systemctl reload nginx"
+fi
+
 echo "════════════════════════════════════════════════════════════"
