@@ -66,21 +66,45 @@ services:
       timeout: 5s
       retries: 3
 
-  nginx:
-    image: nginx:1.27-alpine
-    container_name: pharmacol-nginx
+  web:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.web
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/v1}
+    container_name: pharmacol-web
     restart: unless-stopped
     depends_on:
       backend:
         condition: service_healthy
     ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./infra/nginx/ssl:/etc/nginx/ssl:ro
+      - "${PHARMACOL_HTTP_PORT:-8080}:80"
+
+  migrate:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.migrate
+    container_name: pharmacol-migrate
+    environment:
+      DATABASE_URL: postgresql://pharmacol:${POSTGRES_PASSWORD:-pharmacol_dev}@postgres:5432/pharmacol?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
     profiles:
-      - production
+      - setup
+
+  seed:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.seed
+    container_name: pharmacol-seed
+    environment:
+      DATABASE_URL: postgresql://pharmacol:${POSTGRES_PASSWORD:-pharmacol_dev}@postgres:5432/pharmacol?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - setup
 
 volumes:
   pharmacol_pg_data:
