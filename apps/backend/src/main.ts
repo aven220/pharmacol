@@ -10,6 +10,10 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bodyParser: false });
   const config = app.get(ConfigService);
 
+  // Detrás de nginx/443 con X-Forwarded-Proto
+  const httpAdapter = app.getHttpAdapter().getInstance();
+  httpAdapter.set('trust proxy', 1);
+
   app.use(json({ limit: '15mb' }));
   app.use(urlencoded({ extended: true, limit: '15mb' }));
   app.use(helmet());
@@ -57,4 +61,7 @@ async function bootstrap(): Promise<void> {
   console.log(`LAN           → http://0.0.0.0:${port}/v1 (Expo Go)`);
 }
 
-bootstrap();
+bootstrap().catch((error: unknown) => {
+  console.error('PharmaCol API — error fatal al iniciar:', error);
+  process.exit(1);
+});

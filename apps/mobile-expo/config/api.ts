@@ -14,7 +14,7 @@ export function normalizeApiUrl(input: string): string {
 
 /** URL pública del servidor de producción */
 export const PRODUCTION_API_URL = normalizeApiUrl(
-  process.env.EXPO_PUBLIC_API_URL?.trim() || 'http://20.5.19.8:8080/v1',
+  process.env.EXPO_PUBLIC_API_URL?.trim() || 'https://pharmacol.tudominio.com/v1',
 );
 
 /** IP del Mac donde corre Metro — Expo Go la expone automáticamente */

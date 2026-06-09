@@ -21,6 +21,8 @@ RUN pnpm db:generate && pnpm build:backend
 FROM node:20-alpine AS runner
 WORKDIR /app/apps/backend
 ENV NODE_ENV=production
+# Prisma + healthcheck en Alpine
+RUN apk add --no-cache wget openssl libc6-compat
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nestjs
 
 # pnpm: store en /app/node_modules/.pnpm + symlinks en apps/backend/node_modules

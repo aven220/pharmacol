@@ -54,7 +54,8 @@ set +a
 API_PORT="${API_PORT:-3005}"
 PHARMACOL_HTTP_PORT="${PHARMACOL_HTTP_PORT:-8080}"
 PHARMACOL_HOST="${PHARMACOL_HOST:-20.5.19.8}"
-PHARMACOL_API="${PHARMACOL_API:-http://${PHARMACOL_HOST}:${PHARMACOL_HTTP_PORT}/v1}"
+PHARMACOL_PUBLIC_URL="${PHARMACOL_PUBLIC_URL:-https://${PHARMACOL_HOST}}"
+PHARMACOL_API="${PHARMACOL_API:-${PHARMACOL_PUBLIC_URL}/v1}"
 
 echo "==> PharmaCol — despliegue servidor"
 echo "    API interna: :${API_PORT}  |  Portal web: :${PHARMACOL_HTTP_PORT}"
@@ -100,16 +101,10 @@ $COMPOSE up -d --build backend web
 
 echo "==> 5/5 Verificando salud..."
 sleep 5
-if curl -sf "http://localhost:${API_PORT}/v1/health" >/dev/null; then
-  echo "    ✓ API OK  http://localhost:${API_PORT}/v1/health"
+if curl -sf "http://127.0.0.1:${PHARMACOL_HTTP_PORT}/v1/health" >/dev/null; then
+  echo "    ✓ Web/API OK  http://127.0.0.1:${PHARMACOL_HTTP_PORT}/v1/health"
 else
-  echo "    ⚠ API no responde aún — revisa: $COMPOSE logs backend"
-fi
-
-if curl -sf "http://localhost:${PHARMACOL_HTTP_PORT}/" >/dev/null; then
-  echo "    ✓ Web OK  http://localhost:${PHARMACOL_HTTP_PORT}/"
-else
-  echo "    ⚠ Web no responde aún — revisa: $COMPOSE logs web"
+  echo "    ⚠ Web no responde aún — revisa: $COMPOSE logs web backend"
 fi
 
 if $RUN_SYNC; then
@@ -121,9 +116,10 @@ fi
 echo ""
 echo "════════════════════════════════════════════════════════"
 echo "  Despliegue listo"
-echo "  Portal (Consulta + Admin): http://${PHARMACOL_HOST}:${PHARMACOL_HTTP_PORT}/"
-echo "  API directa (móvil/debug):  http://${PHARMACOL_HOST}:${API_PORT}/v1"
-echo "  Swagger:                    http://${PHARMACOL_HOST}:${PHARMACOL_HTTP_PORT}/docs"
+echo "  Portal (HTTPS):  ${PHARMACOL_PUBLIC_URL}/"
+echo "  API pública:     ${PHARMACOL_API}"
+echo "  Swagger:         ${PHARMACOL_PUBLIC_URL}/docs"
+echo "  Docker local:    http://127.0.0.1:${PHARMACOL_HTTP_PORT}/ (solo servidor)"
 echo ""
 echo "  Login admin por defecto (seed): admin@pharmacol.co / admin123"
 echo "  Cambia la contraseña tras el primer acceso."
