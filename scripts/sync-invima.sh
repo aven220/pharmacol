@@ -21,6 +21,7 @@ fi
 
 echo "=== PharmaCol — Sync INVIMA ==="
 echo "API:    $API"
+echo "Email:  $EMAIL"
 echo "Fuente: $FUENTE"
 echo ""
 

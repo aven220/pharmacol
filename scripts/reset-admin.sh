@@ -20,19 +20,30 @@ API="$(pharmacol_resolve_api_local "$ROOT")"
 
 echo "==> Restablecer usuario admin"
 echo "    Email:    ${EMAIL}"
+echo "    Password: ${PASSWORD}"
 echo "    API:      ${API}"
 echo ""
 
-echo "→ Seed (roles + admin)..."
-$COMPOSE --profile setup run --rm \
+if [[ -n "${PHARMACOL_PASSWORD:-}" && "${PHARMACOL_PASSWORD}" != "$PASSWORD" ]]; then
+  echo "⚠ PHARMACOL_PASSWORD en .env difiere del admin — sync usará PHARMACOL_PASSWORD"
+  echo "  Quita PHARMACOL_PASSWORD del .env o ponlo igual a SEED_ADMIN_PASSWORD"
+  echo ""
+fi
+
+echo "→ Postgres..."
+$COMPOSE up -d postgres >/dev/null
+for i in $(seq 1 30); do
+  if $COMPOSE exec -T postgres pg_isready -U pharmacol -d pharmacol >/dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+
+echo "→ Reset admin en BD..."
+$COMPOSE --profile setup run --rm --build \
   -e SEED_ADMIN_EMAIL="$EMAIL" \
   -e SEED_ADMIN_PASSWORD="$PASSWORD" \
-  seed
-
-echo "→ Desbloquear cuenta..."
-$COMPOSE exec -T postgres psql -U pharmacol -d pharmacol -c \
-  "UPDATE users SET status = 'ACTIVO', intentos_fallidos = 0, bloqueado_hasta = NULL
-   WHERE email = '${EMAIL}';"
+  seed pnpm exec tsx scripts/reset-admin-cli.ts
 
 echo ""
 echo "→ Verificar login..."
@@ -48,8 +59,9 @@ else
   echo "✗ Login aún falla (HTTP ${HTTP})"
   echo "$BODY"
   echo ""
-  echo "Revisa POSTGRES_PASSWORD en .env vs contraseña real de Postgres:"
-  echo "  bash scripts/fix-postgres-password.sh"
+  echo "Diagnóstico:"
+  echo "  bash scripts/diagnose-auth.sh"
+  echo "  bash scripts/fix-postgres-password.sh && bash scripts/reset-admin.sh"
   exit 1
 fi
 

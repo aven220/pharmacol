@@ -23,6 +23,10 @@ if [[ -f .env ]]; then
   fi
 fi
 echo "→ API local usada: ${API}"
+if [[ -n "${PHARMACOL_PASSWORD:-}" ]]; then
+  echo "→ PHARMACOL_PASSWORD en .env: (definido — sync no usa admin123 por defecto)"
+fi
+echo "→ Email sync/login: ${EMAIL}"
 echo ""
 
 echo "→ Health API..."
