@@ -48,8 +48,10 @@ if [[ "$MODE" == "docker" ]]; then
   echo "  PASO PREVIO — conectar redes Docker:"
   echo "     bash scripts/connect-pharma-network.sh"
   echo ""
-  echo "  Luego pega el bloque location en nginx de pharma-edge-prod"
-  echo "  (proxy_pass http://pharmacol-web/pharmacol/;)"
+  echo "  Luego edita el archivo en el HOST (montado en pharma-edge-prod):"
+  echo "     ~/pharma-delivery/infra/nginx/edge.prod.conf"
+  echo "  Añade el bloque location /pharmacol/ antes de 'location / {'"
+  echo "  Recarga: docker exec -u root pharma-edge-prod nginx -t && docker exec -u root pharma-edge-prod nginx -s reload"
   echo ""
 fi
   echo "════════════════════════════════════════════════════════════"
