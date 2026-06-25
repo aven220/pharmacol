@@ -33,6 +33,32 @@ services:
       timeout: 3s
       retries: 10
 
+  migrate:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.migrate
+    container_name: pharmacol-migrate
+    environment:
+      DATABASE_URL: postgresql://pharmacol:${POSTGRES_PASSWORD:-pharmacol_dev}@postgres:5432/pharmacol?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - setup
+
+  seed:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.seed
+    container_name: pharmacol-seed
+    environment:
+      DATABASE_URL: postgresql://pharmacol:${POSTGRES_PASSWORD:-pharmacol_dev}@postgres:5432/pharmacol?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - setup
+
 volumes:
   pharmacol_pg_data:
   pharmacol_redis_data:

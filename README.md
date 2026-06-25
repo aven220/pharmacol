@@ -27,6 +27,36 @@ En **producción**, el acceso público suele ser `https://TU-IP/pharmacol/` (Ngi
 
 ---
 
+## Instalación en Windows (servidor o PC)
+
+Ver guía completa: **[docs/WINDOWS.md](docs/WINDOWS.md)**
+
+Resumen en PowerShell (`G:\PROGRAMAS\pharmacol`):
+
+```powershell
+docker compose up -d
+
+# Migrar y seed SIN instalar pnpm:
+docker compose --profile setup run --rm migrate
+docker compose --profile setup run --rm seed
+
+# Producción (API + panel web en Docker):
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+Si quieres `pnpm dev:backend` en el host, instala pnpm primero:
+
+```powershell
+corepack enable
+corepack prepare pnpm@9.15.0 --activate
+pnpm install
+pnpm dev:backend
+```
+
+O usa el script: `powershell -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1 -Dev`
+
+---
+
 ## 1. Instalación en Mac (desarrollo)
 
 ### Requisitos

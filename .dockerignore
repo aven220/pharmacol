@@ -1,0 +1,30 @@
+# Dependencias y artefactos locales (no copiar al contexto Docker)
+**/node_modules
+**/.pnpm-store
+**/dist
+**/.turbo
+**/.cache
+**/coverage
+
+# Entorno y secretos
+.env
+.env.*
+!.env.example
+!.env.server.example
+
+# Git y IDE
+.git
+.gitignore
+.cursor
+.vscode
+*.md
+!database/prisma/**/*.md
+
+# Apps no usadas en imágenes backend/web/migrate
+apps/mobile
+apps/mobile-expo
+
+# Logs y OS
+*.log
+.DS_Store
+Thumbs.db

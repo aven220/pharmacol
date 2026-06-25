@@ -3,11 +3,11 @@ FROM node:20-alpine AS admin-build
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY apps/admin/package.json ./apps/admin/
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY apps/admin ./apps/admin
+
 RUN pnpm install --frozen-lockfile --filter @pharmacol/admin...
 
-COPY apps/admin ./apps/admin
 ARG VITE_API_URL=/pharmacol/v1
 ARG VITE_BASE_PATH=/pharmacol/
 ENV VITE_API_URL=$VITE_API_URL

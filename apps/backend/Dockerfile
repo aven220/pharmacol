@@ -1,31 +1,31 @@
 # Backend multi-stage — monorepo pnpm + Prisma
 FROM node:20-alpine AS base
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+RUN apk add --no-cache openssl libc6-compat
 WORKDIR /app
 
 FROM base AS builder
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
-COPY apps/backend/package.json ./apps/backend/
-COPY database/package.json ./database/
-COPY database/prisma ./database/prisma
+# Copiar fuentes ANTES de pnpm install (evita conflicto node_modules ↔ COPY)
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .npmrc ./
+COPY apps/backend ./apps/backend
+COPY database ./database
 
 RUN pnpm install --frozen-lockfile \
     --filter @pharmacol/backend \
     --filter @pharmacol/database
 
-COPY apps/backend ./apps/backend
-COPY database ./database
+WORKDIR /app/database
+RUN pnpm exec prisma generate
 
-RUN pnpm db:generate && pnpm build:backend
+WORKDIR /app
+RUN pnpm build:backend
 
 FROM node:20-alpine AS runner
 WORKDIR /app/apps/backend
 ENV NODE_ENV=production
-# Prisma + healthcheck en Alpine
 RUN apk add --no-cache wget openssl libc6-compat
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nestjs
 
-# pnpm: store en /app/node_modules/.pnpm + symlinks en apps/backend/node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/node_modules /app/node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/apps/backend /app/apps/backend
 COPY --from=builder --chown=nestjs:nodejs /app/database /app/database
