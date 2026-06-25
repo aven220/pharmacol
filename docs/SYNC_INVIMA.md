@@ -148,6 +148,80 @@ El seed **no** reemplaza al sync. Para producción usa solo datos del sync.
 | Síntoma | Solución |
 |---------|----------|
 | Sync muy lento | Normal la primera vez (~40k+ registros CUM) |
-| Error 429 API | Agrega `INVIMA_APP_TOKEN` en `.env` |
+| Error 429 API / segunda sync FALLIDA | Agrega `INVIMA_APP_TOKEN` en `.env`, espera 15–30 min entre intentos y reinicia backend |
+| Solo ~7k medicamentos | Revisa `codigos_cum`: si también son ~7k, la primera sync se cortó — reintenta tras configurar token |
+| Segunda sync FALLIDA con pocos leídos | Límite de datos.gov.co o red del servidor; ver logs del backend |
 | App sin resultados | Confirma sync terminó: admin → Sincronización → Historial |
 | Redis error | `docker compose up -d` |
+
+### Diagnóstico en el servidor Windows
+
+```powershell
+cd G:\PROGRAMAS\pharmacol
+
+# Logs del backend (busque "429", "INVIMA", "falló")
+docker compose -p pharmacol -f docker-compose.prod.yml logs backend --tail 150
+
+# Conteos en base de datos
+docker compose -p pharmacol -f docker-compose.prod.yml exec postgres psql -U pharmacol -d pharmacol -c "
+  SELECT COUNT(*) AS medicamentos FROM medicamentos;
+  SELECT COUNT(*) AS codigos_cum FROM codigos_cum;
+  SELECT status, registros_leidos, registros_insertados, registros_omitidos, metadata
+  FROM sync_jobs ORDER BY created_at DESC LIMIT 5;
+"
+```
+
+## Token INVIMA (opcional, gratis)
+
+**No es obligatorio.** La API de datos.gov.co responde sin token; PharmaCol ya funcionó así antes.
+El token solo evita límites (error 429) en syncs muy largas o muchos reintentos.
+
+**No puedo darte un token** — es personal, como una contraseña. Cada usuario crea el suyo:
+
+1. Abra [datos.gov.co](https://www.datos.gov.co/) → **Registrarse** (o iniciar sesión).
+2. Icono de perfil (arriba derecha) → **Configuración de desarrollador** / *Developer settings*.
+3. Sección **Application Tokens** → **Create new app token** (o copie uno existente).
+4. En el servidor, archivo `G:\PROGRAMAS\pharmacol\.env`:
+   ```env
+   INVIMA_APP_TOKEN="pegue-aqui-el-token-largo"
+   ```
+5. Reinicie: `docker compose -p pharmacol -f docker-compose.prod.yml restart backend`
+
+Si no recuerda la cuenta, cree una nueva con su correo — el token tarda 2 minutos.
+
+---
+
+## Si la sync no arranca o no actualiza
+
+Causa habitual: quedó un job **EN_PROCESO** en la BD tras reiniciar Docker o cancelar.
+
+**Opción A — Script (servidor Windows):**
+```powershell
+cd G:\PROGRAMAS\pharmacol
+powershell -ExecutionPolicy Bypass -File .\scripts\clear-sync-stuck.ps1
+```
+
+**Opción B — Admin:** botón **Liberar syncs colgadas** → luego **Ejecutar** solo `INVIMA_CUM_VIGENTES`.
+
+**¿Por qué ve 0 insertados?** En un re-sync es normal: los datos ya están. Mire **Leídos** (~40.000) y **Omitidos** altos = base verificada OK.
+
+---
+
+### Sincronización limpia (paso a paso)
+
+1. **Reiniciar backend** si canceló o borró jobs a mitad de sync (mata procesos huérfanos):
+   ```powershell
+   docker compose -p pharmacol -f docker-compose.prod.yml restart backend
+   ```
+2. Espere 1–2 minutos hasta que no aparezcan líneas `Sync INVIMA_` en los logs.
+3. Configure `INVIMA_APP_TOKEN` en `.env` si aún no lo tiene.
+4. Admin → Sincronización → **solo** `INVIMA_CUM_VIGENTES` → **Ejecutar** (no Reimportar).
+5. **No lance otra fuente** hasta que esta termine (~40.000 leídos en logs).
+6. **No cancele ni borre** el job mientras `EN_PROCESO`.
+7. Cuando termine, verifique conteos (`medicamentos` y `codigos_cum`).
+8. Opcional después: `INVIMA_DISPOSITIVOS` en un segundo intento, solo.
+
+| Error en logs | Causa | Qué hacer |
+|---------------|-------|-----------|
+| `No record was found for an update` | Borró el job mientras el backend seguía | `restart backend`, espere, vuelva a **Ejecutar** una sola fuente |
+| Dos fuentes intercaladas en logs | Dos syncs en paralelo | Reinicie backend; una fuente a la vez |

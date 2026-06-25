@@ -12,7 +12,8 @@ COPY database ./database
 
 RUN pnpm install --frozen-lockfile \
     --filter @pharmacol/backend \
-    --filter @pharmacol/database
+    --filter @pharmacol/database \
+    --config.optional=false
 
 WORKDIR /app/database
 RUN pnpm exec prisma generate

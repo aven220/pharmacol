@@ -159,6 +159,11 @@ export async function fetchSyncHistory(page = 1) {
   return data.data ?? data;
 }
 
+export async function resetStuckSyncJobs() {
+  const { data } = await api.post('/admin/sync/limpiar-colgadas');
+  return data.data ?? data;
+}
+
 export async function triggerSync(fuenteCodigo: string, force = false) {
   const { data } = await api.post(
     '/admin/sync/ejecutar-sync',

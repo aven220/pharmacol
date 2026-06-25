@@ -42,6 +42,13 @@ export class SyncController {
     return this.syncService.listJobs(query.page, query.limit);
   }
 
+  @Post('limpiar-colgadas')
+  @RequirePermissions('sync:execute')
+  @ApiOperation({ summary: 'Liberar syncs EN_PROCESO huérfanas que bloquean nuevas ejecuciones' })
+  limpiarColgadas(@CurrentUser() user: JwtPayload) {
+    return this.syncService.resetStuckJobs(user.sub);
+  }
+
   @Post('ejecutar')
   @RequirePermissions('sync:execute')
   @ApiOperation({ summary: 'Ejecutar sincronización manual (async via cola)' })

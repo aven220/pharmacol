@@ -5,6 +5,7 @@ import {
   fetchFuentes,
   fetchSyncHistory,
   getErrorMessage,
+  resetStuckSyncJobs,
   triggerSync,
 } from '../api/client';
 
@@ -17,7 +18,7 @@ type SyncJob = {
   registrosOmitidos?: number;
   createdAt?: string;
   fuente?: { codigo?: string };
-  metadata?: { canceladoPorAdmin?: boolean };
+  metadata?: { canceladoPorAdmin?: boolean; errorMensaje?: string };
 };
 
 export default function SyncPage() {
@@ -70,7 +71,9 @@ export default function SyncPage() {
           `${result.inserted ?? result.registrosInsertados ?? 0} insertados, ` +
           `${result.updated ?? result.registrosActualizados ?? 0} actualizados, ` +
           `${result.skipped ?? result.registrosOmitidos ?? 0} omitidos` +
-          (result.persisted === false ? ' (sin cambios — no guardado en historial)' : ''),
+          (result.persisted === false && (result.read ?? 0) > 0
+            ? ' (terminó pero no se guardó en historial)'
+            : ''),
       );
       await load();
     } catch (e) {
@@ -110,7 +113,26 @@ export default function SyncPage() {
 
   function statusLabel(job: SyncJob) {
     if (job.metadata?.canceladoPorAdmin) return 'CANCELADA';
+    if (job.status === 'COMPLETADA' && (job.metadata as { sinCambiosNuevos?: boolean })?.sinCambiosNuevos) {
+      return 'COMPLETADA (verificada, sin cambios)';
+    }
+    if (job.status === 'FALLIDA' && job.metadata?.errorMensaje) {
+      return `FALLIDA — ${job.metadata.errorMensaje}`;
+    }
     return job.status;
+  }
+
+  async function handleResetStuck() {
+    setActionId('reset');
+    try {
+      const r = await resetStuckSyncJobs();
+      setMessage(`Syncs colgadas liberadas: ${r.cleared ?? 0}. Ya puede ejecutar INVIMA_CUM_VIGENTES.`);
+      await load();
+    } catch (e) {
+      setMessage(getErrorMessage(e));
+    } finally {
+      setActionId(null);
+    }
   }
 
   return (
@@ -126,8 +148,18 @@ export default function SyncPage() {
         <h3>Fuentes activas</h3>
         <p style={{ fontSize: 13, color: '#666' }}>
           Para <strong>medicamentos</strong> usa <code>INVIMA_CUM_VIGENTES</code>.
-          Omitidos altos en re-sync es normal (ya existían). Insertados 0 en dispositivos = bug corregido → usa Reimportar.
+          <strong> Token INVIMA es opcional</strong> — si la sync no arranca, use &quot;Liberar colgadas&quot;.
+          Omitidos altos en re-sync es normal. Una fuente a la vez (~40 min).
         </p>
+        <button
+          type="button"
+          className="btn"
+          style={{ marginBottom: 16, background: '#5c6bc0' }}
+          disabled={loading || actionId === 'reset'}
+          onClick={() => handleResetStuck()}
+        >
+          {actionId === 'reset' ? 'Liberando…' : 'Liberar syncs colgadas'}
+        </button>
         {!loadError && fuentes.filter((f) => f.activo).length === 0 ? (
           <p style={{ color: '#e65100', fontSize: 13 }}>
             No hay fuentes activas en la BD. En el servidor ejecuta:{' '}

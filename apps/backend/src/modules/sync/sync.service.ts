@@ -1,9 +1,10 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
 import {
   DataOrigin,
   LaboratoryType,
+  Prisma,
   ProductType,
   RegistrationStatus,
   SyncJobStatus,
@@ -46,6 +47,16 @@ interface SyncProgress {
   updated: number;
   skipped: number;
   errors: number;
+}
+
+interface SyncResult extends SyncProgress {
+  aborted?: boolean;
+}
+
+function isPrismaRecordNotFound(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025'
+  );
 }
 
 function pickField(record: Record<string, unknown>, ...keys: string[]): string | undefined {
@@ -164,8 +175,10 @@ function mapEstado(estado?: string): RegistrationStatus {
 }
 
 @Injectable()
-export class SyncService {
+export class SyncService implements OnModuleInit {
   private readonly logger = new Logger(SyncService.name);
+  /** Jobs con executeManual en curso (aunque el registro en BD haya sido cancelado/eliminado). */
+  private readonly activeSyncJobs = new Set<string>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -173,6 +186,32 @@ export class SyncService {
     private readonly audit: AuditService,
     private readonly mail: MailService,
   ) {}
+
+  async onModuleInit() {
+    const cleared = await this.clearOrphanedInProcessJobs(
+      'Proceso interrumpido al reiniciar el servidor. Puede ejecutar la sync de nuevo.',
+    );
+    if (cleared > 0) {
+      this.logger.warn(`Al arrancar: ${cleared} sync(s) EN_PROCESO marcadas como fallidas (huérfanas)`);
+    }
+  }
+
+  /** Libera jobs EN_PROCESO que bloquean nuevas syncs (p. ej. tras reinicio Docker). */
+  async resetStuckJobs(userId?: string) {
+    const cleared = await this.clearOrphanedInProcessJobs(
+      'Liberado manualmente — el proceso ya no estaba en ejecución.',
+    );
+    await this.releaseStuckJobs();
+    if (userId) {
+      await this.audit.log({
+        userId,
+        accion: 'RESET',
+        recurso: 'sync',
+        metadata: { cleared },
+      });
+    }
+    return { cleared, ok: true };
+  }
 
   async listJobs(page = 1, limit = 20) {
     const skip = (page - 1) * limit;
@@ -191,9 +230,30 @@ export class SyncService {
   async executeManual(fuenteCodigo: string, userId?: string, force = false) {
     await this.releaseStuckJobs();
 
+    if (this.activeSyncJobs.size > 0) {
+      throw new BadRequestException(
+        'Hay una sincronización en curso en el servidor. Espere a que termine (revise los logs) antes de iniciar otra.',
+      );
+    }
+
     const fuente = await this.prisma.dataSource.findUnique({ where: { codigo: fuenteCodigo } });
     if (!fuente || !fuente.activo) {
       throw new Error(`Fuente ${fuenteCodigo} no encontrada o inactiva`);
+    }
+
+    const dbInFlight = await this.prisma.syncJob.findFirst({
+      where: { status: SyncJobStatus.EN_PROCESO },
+      include: { fuente: { select: { codigo: true } } },
+    });
+    if (dbInFlight && !this.activeSyncJobs.has(dbInFlight.id)) {
+      await this.markJobFailed(dbInFlight.id, dbInFlight.metadata, {
+        errorMensaje:
+          'Job huérfano EN_PROCESO sin proceso activo — liberado automáticamente.',
+      });
+    } else if (dbInFlight) {
+      throw new BadRequestException(
+        `Ya hay una sincronización en curso (${dbInFlight.fuente?.codigo ?? 'desconocida'}). Espere a que termine.`,
+      );
     }
 
     if (force) {
@@ -211,10 +271,12 @@ export class SyncService {
       },
     });
 
+    this.activeSyncJobs.add(job.id);
+
     try {
       const metadata = (fuente.metadata ?? {}) as { entidadDestino?: string };
       const entidad = metadata.entidadDestino;
-      const result =
+      const result: SyncResult =
         entidad === 'dispositivos_medicos'
           ? await this.syncInvimaDispositivos(fuente.datasetId!, fuente.codigo, job.id)
           : entidad === 'alertas_sanitarias'
@@ -223,6 +285,13 @@ export class SyncService {
               ? await this.syncInvimaAlertasPortal(fuente.codigo, job.id, force)
               : await this.syncInvimaCum(fuente.datasetId!, fuente.codigo, job.id, force);
 
+      if (result.aborted) {
+        this.logger.warn(
+          `Sync ${fuenteCodigo}: detenida (${result.read} leídos antes de cancelar/eliminar el job)`,
+        );
+        return { jobId: null, persisted: false, ...result };
+      }
+
       if (entidad === 'alertas_sanitarias' || entidad === 'alertas_sanitarias_portal') {
         if (this.syncHasChanges(result)) {
           await this.sendAlertasDigest(job.id, result);
@@ -230,42 +299,67 @@ export class SyncService {
       }
 
       if (this.syncHasChanges(result)) {
-        await this.prisma.syncJob.update({
-          where: { id: job.id },
-          data: {
-            status: result.errors > 0 ? SyncJobStatus.PARCIAL : SyncJobStatus.COMPLETADA,
-            finAt: new Date(),
-            registrosLeidos: result.read,
-            registrosInsertados: result.inserted,
-            registrosActualizados: result.updated,
-            registrosOmitidos: result.skipped,
-            registrosError: result.errors,
-          },
+        const finalized = await this.finalizeSyncJob(job.id, {
+          status: result.errors > 0 ? SyncJobStatus.PARCIAL : SyncJobStatus.COMPLETADA,
+          finAt: new Date(),
+          registrosLeidos: result.read,
+          registrosInsertados: result.inserted,
+          registrosActualizados: result.updated,
+          registrosOmitidos: result.skipped,
+          registrosError: result.errors,
         });
 
-        await this.audit.log({
-          userId,
-          accion: 'SYNC_MANUAL',
-          recurso: 'sync',
-          recursoId: job.id,
-          metadata: result,
-        });
+        if (finalized) {
+          await this.audit.log({
+            userId,
+            accion: 'SYNC_MANUAL',
+            recurso: 'sync',
+            recursoId: job.id,
+            metadata: result,
+          });
+          return { jobId: job.id, persisted: true, ...result };
+        }
 
-        return { jobId: job.id, persisted: true, ...result };
+        return { jobId: null, persisted: false, ...result };
       }
 
-      await this.prisma.syncJob.delete({ where: { id: job.id } });
-      this.logger.log(
-        `Sync ${fuenteCodigo}: sin cambios (${result.read} leídos, ${result.skipped} omitidos) — no se guarda en historial`,
-      );
+      if (result.read > 0) {
+        const finalized = await this.finalizeSyncJob(job.id, {
+          status: SyncJobStatus.COMPLETADA,
+          finAt: new Date(),
+          registrosLeidos: result.read,
+          registrosInsertados: result.inserted,
+          registrosActualizados: result.updated,
+          registrosOmitidos: result.skipped,
+          registrosError: result.errors,
+          metadata: {
+            sinCambiosNuevos: true,
+            nota: 'Todos los registros ya estaban en la base — sync verificada correctamente.',
+          },
+        });
+        this.logger.log(
+          `Sync ${fuenteCodigo}: verificación sin cambios (${result.read} leídos, ${result.skipped} omitidos)`,
+        );
+        return {
+          jobId: finalized ? job.id : null,
+          persisted: finalized,
+          ...result,
+        };
+      }
 
+      await this.deleteSyncJobIfExists(job.id);
       return { jobId: null, persisted: false, ...result };
     } catch (error) {
-      await this.prisma.syncJob.update({
-        where: { id: job.id },
-        data: { status: SyncJobStatus.FALLIDA, finAt: new Date() },
+      const errorMensaje = error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(`Sync ${fuenteCodigo} falló: ${errorMensaje}`);
+      await this.finalizeSyncJob(job.id, {
+        status: SyncJobStatus.FALLIDA,
+        finAt: new Date(),
+        metadata: { errorMensaje },
       });
       throw error;
+    } finally {
+      this.activeSyncJobs.delete(job.id);
     }
   }
 
@@ -316,28 +410,170 @@ export class SyncService {
     return { ok: true, status: 'FALLIDA' };
   }
 
-  private async releaseStuckJobs() {
-    const threshold = new Date(Date.now() - 60 * 60 * 1000);
-    const { count } = await this.prisma.syncJob.updateMany({
-      where: { status: SyncJobStatus.EN_PROCESO, inicioAt: { lt: threshold } },
-      data: { status: SyncJobStatus.FALLIDA, finAt: new Date() },
+  private async clearOrphanedInProcessJobs(errorMensaje: string): Promise<number> {
+    const orphans = await this.prisma.syncJob.findMany({
+      where: { status: SyncJobStatus.EN_PROCESO },
+      select: { id: true, metadata: true },
     });
-    if (count > 0) {
-      this.logger.warn(`Marcados ${count} sync jobs colgados como FALLIDA`);
+    for (const job of orphans) {
+      if (this.activeSyncJobs.has(job.id)) continue;
+      await this.markJobFailed(job.id, job.metadata, { errorMensaje });
+    }
+    return orphans.filter((j) => !this.activeSyncJobs.has(j.id)).length;
+  }
+
+  private async markJobFailed(
+    jobId: string,
+    metadata: unknown,
+    extra: { errorMensaje: string },
+  ): Promise<void> {
+    await this.prisma.syncJob.update({
+      where: { id: jobId },
+      data: {
+        status: SyncJobStatus.FALLIDA,
+        finAt: new Date(),
+        metadata: {
+          ...(typeof metadata === 'object' && metadata ? metadata : {}),
+          ...extra,
+        },
+      },
+    });
+  }
+
+  private async releaseStuckJobs() {
+    const threshold = new Date(Date.now() - 15 * 60 * 1000);
+    const stuck = await this.prisma.syncJob.findMany({
+      where: { status: SyncJobStatus.EN_PROCESO, inicioAt: { lt: threshold } },
+      select: { id: true, metadata: true },
+    });
+    for (const job of stuck) {
+      if (this.activeSyncJobs.has(job.id)) continue;
+      await this.markJobFailed(job.id, job.metadata, {
+        errorMensaje:
+          'Sincronización colgada más de 15 minutos. Ejecute de nuevo (token INVIMA opcional).',
+      });
+    }
+    if (stuck.length > 0) {
+      this.logger.warn(`Marcados ${stuck.length} sync jobs colgados como FALLIDA`);
+    }
+  }
+
+  private socrataHeaders(): Record<string, string> {
+    const headers: Record<string, string> = { Accept: 'application/json' };
+    const appToken = this.config.get<string>('INVIMA_APP_TOKEN');
+    if (appToken?.trim()) headers['X-App-Token'] = appToken.trim();
+    return headers;
+  }
+
+  private hasInvimaAppToken(): boolean {
+    return Boolean(this.config.get<string>('INVIMA_APP_TOKEN')?.trim());
+  }
+
+  private socrataBatchSize(): number {
+    return this.hasInvimaAppToken() ? 1000 : 500;
+  }
+
+  private async throttleSocrataBatch(): Promise<void> {
+    const delayMs = this.hasInvimaAppToken() ? 300 : 1200;
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+
+  private async fetchSocrataJson(
+    datasetId: string,
+    params: Record<string, string>,
+    label: string,
+  ): Promise<Record<string, unknown>[]> {
+    const url = new URL(`https://www.datos.gov.co/resource/${datasetId}.json`);
+    for (const [key, value] of Object.entries(params)) {
+      url.searchParams.set(key, value);
+    }
+
+    const headers = this.socrataHeaders();
+    const maxAttempts = 6;
+    let lastStatus = 0;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const response = await fetch(url.toString(), { headers });
+        if (response.ok) {
+          return (await response.json()) as Record<string, unknown>[];
+        }
+
+        lastStatus = response.status;
+        const retryable = response.status === 429 || response.status >= 500;
+        if (retryable && attempt < maxAttempts) {
+          const delayMs = attempt * (this.hasInvimaAppToken() ? 3000 : 10000);
+          this.logger.warn(
+            `${label}: HTTP ${response.status}, reintento ${attempt}/${maxAttempts - 1} en ${delayMs}ms`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          continue;
+        }
+
+        const body = await response.text().catch(() => '');
+        throw new Error(
+          `${label}: HTTP ${response.status} ${response.statusText}${body ? ` — ${body.slice(0, 200)}` : ''}`,
+        );
+      } catch (err) {
+        const isNetwork = err instanceof TypeError;
+        if (isNetwork && attempt < maxAttempts) {
+          const delayMs = attempt * 5000;
+          this.logger.warn(`${label}: error de red, reintento ${attempt}/${maxAttempts - 1}`);
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          continue;
+        }
+        throw err;
+      }
+    }
+
+    throw new Error(`${label}: API INVIMA no respondió (último HTTP ${lastStatus})`);
+  }
+
+  private async isJobActive(jobId: string): Promise<boolean> {
+    const job = await this.prisma.syncJob.findUnique({
+      where: { id: jobId },
+      select: { status: true },
+    });
+    return job?.status === SyncJobStatus.EN_PROCESO;
+  }
+
+  private async finalizeSyncJob(
+    jobId: string,
+    data: Prisma.SyncJobUpdateInput & { status: SyncJobStatus },
+  ): Promise<boolean> {
+    try {
+      await this.prisma.syncJob.update({ where: { id: jobId }, data });
+      return true;
+    } catch (error) {
+      if (isPrismaRecordNotFound(error)) return false;
+      throw error;
+    }
+  }
+
+  private async deleteSyncJobIfExists(jobId: string): Promise<void> {
+    try {
+      await this.prisma.syncJob.delete({ where: { id: jobId } });
+    } catch (error) {
+      if (!isPrismaRecordNotFound(error)) throw error;
     }
   }
 
   private async updateJobProgress(jobId: string, progress: SyncProgress) {
-    await this.prisma.syncJob.update({
-      where: { id: jobId },
-      data: {
-        registrosLeidos: progress.read,
-        registrosInsertados: progress.inserted,
-        registrosActualizados: progress.updated,
-        registrosOmitidos: progress.skipped,
-        registrosError: progress.errors,
-      },
-    });
+    try {
+      await this.prisma.syncJob.update({
+        where: { id: jobId },
+        data: {
+          registrosLeidos: progress.read,
+          registrosInsertados: progress.inserted,
+          registrosActualizados: progress.updated,
+          registrosOmitidos: progress.skipped,
+          registrosError: progress.errors,
+        },
+      });
+    } catch (error) {
+      if (isPrismaRecordNotFound(error)) return;
+      throw error;
+    }
   }
 
   private async syncInvimaCum(
@@ -346,9 +582,8 @@ export class SyncService {
     jobId: string,
     force = false,
   ) {
-    const appToken = this.config.get<string>('INVIMA_APP_TOKEN');
     let offset = 0;
-    const batchSize = 1000;
+    const batchSize = this.socrataBatchSize();
     let read = 0;
     let inserted = 0;
     let updated = 0;
@@ -357,19 +592,16 @@ export class SyncService {
     let hasMore = true;
 
     while (hasMore) {
-      const url = new URL(`https://www.datos.gov.co/resource/${datasetId}.json`);
-      url.searchParams.set('$limit', String(batchSize));
-      url.searchParams.set('$offset', String(offset));
-
-      const headers: Record<string, string> = { Accept: 'application/json' };
-      if (appToken) headers['X-App-Token'] = appToken;
-
-      const response = await fetch(url.toString(), { headers });
-      if (!response.ok) {
-        throw new Error(`INVIMA API error: ${response.status} ${response.statusText}`);
+      if (!(await this.isJobActive(jobId))) {
+        this.logger.warn(`Sync ${fuenteCodigo}: detenida (job cancelado o eliminado)`);
+        return { read, inserted, updated, skipped, errors, aborted: true };
       }
 
-      const records = (await response.json()) as Record<string, unknown>[];
+      const records = await this.fetchSocrataJson(
+        datasetId,
+        { $limit: String(batchSize), $offset: String(offset) },
+        `INVIMA CUM (${fuenteCodigo})`,
+      );
       if (!records.length) break;
 
       for (const [index, raw] of records.entries()) {
@@ -399,6 +631,7 @@ export class SyncService {
       this.logger.log(
         `Sync ${fuenteCodigo}: ${offset} leídos | +${inserted} ins | ~${updated} upd | ${skipped} omit`,
       );
+      if (hasMore) await this.throttleSocrataBatch();
     }
 
     return { read, inserted, updated, skipped, errors };
@@ -623,9 +856,8 @@ export class SyncService {
   }
 
   private async syncInvimaDispositivos(datasetId: string, fuenteCodigo: string, jobId: string) {
-    const appToken = this.config.get<string>('INVIMA_APP_TOKEN');
     let offset = 0;
-    const batchSize = 1000;
+    const batchSize = this.socrataBatchSize();
     let read = 0;
     let inserted = 0;
     let updated = 0;
@@ -634,19 +866,16 @@ export class SyncService {
     let hasMore = true;
 
     while (hasMore) {
-      const url = new URL(`https://www.datos.gov.co/resource/${datasetId}.json`);
-      url.searchParams.set('$limit', String(batchSize));
-      url.searchParams.set('$offset', String(offset));
-
-      const headers: Record<string, string> = { Accept: 'application/json' };
-      if (appToken) headers['X-App-Token'] = appToken;
-
-      const response = await fetch(url.toString(), { headers });
-      if (!response.ok) {
-        throw new Error(`INVIMA dispositivos API error: ${response.status}`);
+      if (!(await this.isJobActive(jobId))) {
+        this.logger.warn(`Sync ${fuenteCodigo}: detenida (job cancelado o eliminado)`);
+        return { read, inserted, updated, skipped, errors, aborted: true };
       }
 
-      const records = (await response.json()) as Record<string, unknown>[];
+      const records = await this.fetchSocrataJson(
+        datasetId,
+        { $limit: String(batchSize), $offset: String(offset) },
+        `INVIMA dispositivos (${fuenteCodigo})`,
+      );
       if (!records.length) break;
 
       for (const [index, raw] of records.entries()) {
@@ -676,6 +905,7 @@ export class SyncService {
       this.logger.log(
         `Sync DM ${fuenteCodigo}: ${offset} leídos | +${inserted} ins | ~${updated} upd | ${skipped} omit`,
       );
+      if (hasMore) await this.throttleSocrataBatch();
     }
 
     return { read, inserted, updated, skipped, errors };
@@ -780,9 +1010,8 @@ export class SyncService {
     jobId: string,
     force = false,
   ) {
-    const appToken = this.config.get<string>('INVIMA_APP_TOKEN');
     let offset = 0;
-    const batchSize = 1000;
+    const batchSize = this.socrataBatchSize();
     let read = 0;
     let inserted = 0;
     let updated = 0;
@@ -791,20 +1020,16 @@ export class SyncService {
     let hasMore = true;
 
     while (hasMore) {
-      const url = new URL(`https://www.datos.gov.co/resource/${datasetId}.json`);
-      url.searchParams.set('$limit', String(batchSize));
-      url.searchParams.set('$offset', String(offset));
-      url.searchParams.set('$order', 'fecha DESC');
-
-      const headers: Record<string, string> = { Accept: 'application/json' };
-      if (appToken) headers['X-App-Token'] = appToken;
-
-      const response = await fetch(url.toString(), { headers });
-      if (!response.ok) {
-        throw new Error(`INVIMA alertas API error: ${response.status} ${response.statusText}`);
+      if (!(await this.isJobActive(jobId))) {
+        this.logger.warn(`Sync ${fuenteCodigo}: detenida (job cancelado o eliminado)`);
+        return { read, inserted, updated, skipped, errors, aborted: true };
       }
 
-      const records = (await response.json()) as Record<string, unknown>[];
+      const records = await this.fetchSocrataJson(
+        datasetId,
+        { $limit: String(batchSize), $offset: String(offset), $order: 'fecha DESC' },
+        `INVIMA alertas (${fuenteCodigo})`,
+      );
       if (!records.length) break;
 
       for (const [index, raw] of records.entries()) {
@@ -834,6 +1059,7 @@ export class SyncService {
       this.logger.log(
         `Sync alertas ${fuenteCodigo}: ${offset} leídos | +${inserted} ins | ~${updated} upd | ${skipped} omit`,
       );
+      if (hasMore) await this.throttleSocrataBatch();
     }
 
     return { read, inserted, updated, skipped, errors };
@@ -945,6 +1171,11 @@ export class SyncService {
     for (const category of INVIMA_PORTAL_CATEGORIES) {
       let stopCategory = false;
       for (let page = 0; page < maxPages && !stopCategory; page++) {
+        if (!(await this.isJobActive(jobId))) {
+          this.logger.warn(`Sync ${fuenteCodigo}: detenida (job cancelado o eliminado)`);
+          return { read, inserted, updated, skipped, errors, aborted: true };
+        }
+
         const url = buildInvimaPortalPageUrl(category.slug, page);
         let html: string;
         try {

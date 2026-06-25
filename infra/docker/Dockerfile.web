@@ -6,7 +6,7 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/admin ./apps/admin
 
-RUN pnpm install --frozen-lockfile --filter @pharmacol/admin...
+RUN pnpm install --frozen-lockfile --filter @pharmacol/admin... --config.optional=false
 
 ARG VITE_API_URL=/pharmacol/v1
 ARG VITE_BASE_PATH=/pharmacol/

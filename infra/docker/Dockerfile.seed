@@ -7,7 +7,7 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY database ./database
 
-RUN pnpm install --frozen-lockfile --filter @pharmacol/database...
+RUN pnpm install --frozen-lockfile --filter @pharmacol/database... --config.optional=false
 
 WORKDIR /app/database
 RUN pnpm exec prisma generate
