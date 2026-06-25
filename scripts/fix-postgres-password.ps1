@@ -1,4 +1,4 @@
-# Alinea la contraseña de PostgreSQL con POSTGRES_PASSWORD del .env (Windows)
+# Alinea la contrasena de PostgreSQL con POSTGRES_PASSWORD del .env (Windows)
 param(
     [string]$ComposeFile = "docker-compose.prod.yml"
 )
@@ -23,7 +23,7 @@ if ($envContent -match '(?m)^POSTGRES_PASSWORD=(.+)$') {
 }
 
 if ([string]::IsNullOrWhiteSpace($pass)) {
-    Write-Host "ERROR: POSTGRES_PASSWORD vacío" -ForegroundColor Red
+    Write-Host "ERROR: POSTGRES_PASSWORD vacio" -ForegroundColor Red
     exit 1
 }
 
@@ -38,18 +38,19 @@ for ($i = 0; $i -lt 30; $i++) {
     Start-Sleep -Seconds 2
 }
 if (-not $ready) {
-    Write-Host "ERROR: PostgreSQL no respondió." -ForegroundColor Red
+    Write-Host "ERROR: PostgreSQL no respondio." -ForegroundColor Red
     exit 1
 }
 
 $passSql = $pass -replace "'", "''"
 $sql = "ALTER USER pharmacol PASSWORD '$passSql';"
 
-Write-Host "==> Actualizando contraseña del usuario pharmacol..."
+Write-Host "==> Actualizando contrasena del usuario pharmacol..."
 $defaults = @($pass, 'pharmacol_dev', 'PharmaCol_Dev_2026!')
 $ok = $false
 foreach ($tryPass in ($defaults | Select-Object -Unique)) {
-    Invoke-Expression "$Compose exec -T -e PGPASSWORD=$tryPass postgres psql -U pharmacol -d pharmacol -c `"$sql`"" 2>$null | Out-Null
+    $cmd = "$Compose exec -T -e PGPASSWORD=$tryPass postgres psql -U pharmacol -d pharmacol -c ""$sql"""
+    Invoke-Expression $cmd 2>$null | Out-Null
     if ($LASTEXITCODE -eq 0) {
         $ok = $true
         break
@@ -58,11 +59,11 @@ foreach ($tryPass in ($defaults | Select-Object -Unique)) {
 
 if (-not $ok) {
     Write-Host ""
-    Write-Host "No se pudo cambiar la contraseña." -ForegroundColor Yellow
-    Write-Host "Instalación limpia: .\scripts\deploy-windows-server.ps1 -FirstSetup -ResetDb"
+    Write-Host "No se pudo cambiar la contrasena." -ForegroundColor Yellow
+    Write-Host "Instalacion limpia: .\scripts\deploy-windows-server.ps1 -FirstSetup -ResetDb"
     exit 1
 }
 
 Write-Host ""
-Write-Host "✓ Contraseña alineada con POSTGRES_PASSWORD del .env" -ForegroundColor Green
+Write-Host "[OK] Contrasena alineada con POSTGRES_PASSWORD del .env" -ForegroundColor Green
 Write-Host "Siguiente: docker compose -p pharmacol -f docker-compose.prod.yml --profile setup run --rm seed"
