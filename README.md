@@ -27,33 +27,31 @@ En **producción**, el acceso público suele ser `https://TU-IP/pharmacol/` (Ngi
 
 ---
 
-## Instalación en Windows (servidor o PC)
+## Instalación en Windows — servidor 192.168.20.26
 
-Ver guía completa: **[docs/WINDOWS.md](docs/WINDOWS.md)**
+Guía completa: **[docs/DEPLOY_WINDOWS_SERVER.md](docs/DEPLOY_WINDOWS_SERVER.md)**
 
-Resumen en PowerShell (`G:\PROGRAMAS\pharmacol`):
+| Recurso | URL |
+|---------|-----|
+| Panel | http://192.168.20.26:3906/pharmacol/ |
+| API | http://192.168.20.26:3906/pharmacol/v1 |
 
-```powershell
-docker compose up -d
-
-# Migrar y seed SIN instalar pnpm:
-docker compose --profile setup run --rm migrate
-docker compose --profile setup run --rm seed
-
-# Producción (API + panel web en Docker):
-docker compose -f docker-compose.prod.yml up -d --build
-```
-
-Si quieres `pnpm dev:backend` en el host, instala pnpm primero:
+**Primera vez en el servidor:**
 
 ```powershell
-corepack enable
-corepack prepare pnpm@9.15.0 --activate
-pnpm install
-pnpm dev:backend
+cd G:\PROGRAMAS\pharmacol
+git pull
+powershell -ExecutionPolicy Bypass -File .\scripts\deploy-windows-server.ps1 -FirstSetup
 ```
 
-O usa el script: `powershell -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1 -Dev`
+**Actualizar tras `git push`:**
+
+```powershell
+git pull
+powershell -ExecutionPolicy Bypass -File .\scripts\deploy-windows-server.ps1
+```
+
+Ver también [docs/WINDOWS.md](docs/WINDOWS.md) para desarrollo local.
 
 ---
 

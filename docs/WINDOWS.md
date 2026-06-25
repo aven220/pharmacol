@@ -136,6 +136,33 @@ Parámetros:
 
 ## Problemas comunes
 
+### Error de contraseña PostgreSQL (`Authentication failed`)
+
+La contraseña del **volumen** de Postgres se fija solo la **primera vez**. Si cambiaste `POSTGRES_PASSWORD` en `.env` después, hay desfase.
+
+**Opción 1 — Alinear contraseña (conserva datos):**
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\fix-postgres-password.ps1
+docker compose --profile setup run --rm seed
+```
+
+**Opción 2 — Instalación limpia (borra todos los datos):**
+
+```powershell
+docker compose down -v
+docker compose up -d
+docker compose --profile setup run --rm migrate
+docker compose --profile setup run --rm seed
+```
+
+Comprueba que en `.env` coincidan:
+
+```
+POSTGRES_PASSWORD=la_misma_en_ambos
+DATABASE_URL="postgresql://pharmacol:la_misma_en_ambos@localhost:5543/pharmacol?schema=public"
+```
+
 ### `pnpm` no se reconoce
 
 Instala pnpm (ver arriba) o usa migraciones Docker:

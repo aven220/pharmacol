@@ -3,6 +3,8 @@ services:
     image: postgres:17-alpine
     container_name: pharmacol-postgres
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
       POSTGRES_USER: pharmacol
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pharmacol_dev}
@@ -39,7 +41,8 @@ services:
       dockerfile: apps/backend/Dockerfile
     container_name: pharmacol-backend
     restart: unless-stopped
-    # .env solo para sustituir ${VAR}; DATABASE_URL/REDIS_URL van en environment (red Docker)
+    env_file:
+      - .env
     depends_on:
       postgres:
         condition: service_healthy
@@ -95,9 +98,9 @@ services:
     depends_on:
       backend:
         condition: service_started
-    # 127.0.0.1 solo host; pharma-edge accede vía red Docker (connect-pharma-network.sh)
+    # PHARMACOL_HTTP_BIND=0.0.0.0 → red local; 127.0.0.1 → solo localhost
     ports:
-      - "127.0.0.1:${PHARMACOL_HTTP_PORT:-3906}:80"
+      - "${PHARMACOL_HTTP_BIND:-0.0.0.0}:${PHARMACOL_HTTP_PORT:-3906}:80"
     expose:
       - "80"
 
@@ -106,6 +109,8 @@ services:
       context: .
       dockerfile: infra/docker/Dockerfile.migrate
     container_name: pharmacol-migrate
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql://pharmacol:${POSTGRES_PASSWORD:-pharmacol_dev}@postgres:5432/pharmacol?schema=public
     depends_on:
@@ -119,6 +124,8 @@ services:
       context: .
       dockerfile: infra/docker/Dockerfile.seed
     container_name: pharmacol-seed
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql://pharmacol:${POSTGRES_PASSWORD:-pharmacol_dev}@postgres:5432/pharmacol?schema=public
     depends_on:

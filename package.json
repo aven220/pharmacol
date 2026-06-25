@@ -14,6 +14,8 @@
     "db:migrate:docker": "docker compose --profile setup run --rm migrate",
     "db:seed:docker": "docker compose --profile setup run --rm seed",
     "setup:windows": "powershell -ExecutionPolicy Bypass -File scripts/setup-windows.ps1",
+    "deploy:windows": "powershell -ExecutionPolicy Bypass -File scripts/deploy-windows-server.ps1",
+    "deploy:windows:setup": "powershell -ExecutionPolicy Bypass -File scripts/deploy-windows-server.ps1 -FirstSetup",
     "dev:backend": "pnpm --filter @pharmacol/backend dev",
     "build:backend": "pnpm --filter @pharmacol/backend build",
     "dev:mobile-expo": "pnpm --filter @pharmacol/mobile-expo dev",

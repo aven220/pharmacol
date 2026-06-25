@@ -38,6 +38,8 @@ services:
       context: .
       dockerfile: infra/docker/Dockerfile.migrate
     container_name: pharmacol-migrate
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql://pharmacol:${POSTGRES_PASSWORD:-pharmacol_dev}@postgres:5432/pharmacol?schema=public
     depends_on:
@@ -51,6 +53,8 @@ services:
       context: .
       dockerfile: infra/docker/Dockerfile.seed
     container_name: pharmacol-seed
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql://pharmacol:${POSTGRES_PASSWORD:-pharmacol_dev}@postgres:5432/pharmacol?schema=public
     depends_on:

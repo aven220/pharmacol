@@ -10,7 +10,6 @@ COPY database ./database
 RUN pnpm install --frozen-lockfile --filter @pharmacol/database...
 
 WORKDIR /app/database
-ENV DATABASE_URL="postgresql://pharmacol:pharmacol_dev@postgres:5432/pharmacol?schema=public"
 RUN pnpm exec prisma generate
 
 CMD ["pnpm", "exec", "tsx", "prisma/seed.ts"]
