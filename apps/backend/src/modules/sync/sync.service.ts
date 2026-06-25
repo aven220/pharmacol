@@ -315,7 +315,7 @@ export class SyncService implements OnModuleInit {
             accion: 'SYNC_MANUAL',
             recurso: 'sync',
             recursoId: job.id,
-            metadata: result,
+            metadata: { ...result },
           });
           return { jobId: job.id, persisted: true, ...result };
         }
