@@ -118,6 +118,37 @@ export async function fetchUsers(page = 1) {
   return data.data ?? data;
 }
 
+export async function fetchMe() {
+  const { data } = await api.get('/auth/me');
+  return (data.data ?? data) as {
+    id: string;
+    email: string;
+    nombre: string;
+    roles: string[];
+    permissions: string[];
+  };
+}
+
+export async function register(payload: {
+  email: string;
+  password: string;
+  nombre: string;
+  telefono?: string;
+}) {
+  const { data } = await authClient.post('/auth/register', payload);
+  const result = data.data ?? data;
+  setToken(result.accessToken);
+  if (result.refreshToken) {
+    localStorage.setItem(REFRESH_KEY, result.refreshToken);
+  }
+  return result;
+}
+
+export async function fetchActividadConsultas(page = 1) {
+  const { data } = await api.get('/admin/actividad-consultas', { params: { page, limit: 50 } });
+  return data.data ?? data;
+}
+
 export async function fetchAudit(page = 1) {
   const { data } = await api.get('/admin/audit', { params: { page, limit: 50 } });
   return data.data ?? data;
@@ -139,6 +170,16 @@ export async function triggerSync(fuenteCodigo: string, force = false) {
 
 export async function fetchFuentes() {
   const { data } = await api.get('/admin/fuentes');
+  return data.data ?? data;
+}
+
+export async function fetchAlertasSyncCuota() {
+  const { data } = await api.get('/alertas-sanitarias/sync-cuota');
+  return data.data ?? data;
+}
+
+export async function syncAlertasPortal() {
+  const { data } = await api.post('/alertas-sanitarias/sincronizar', {}, { timeout: 600_000 });
   return data.data ?? data;
 }
 

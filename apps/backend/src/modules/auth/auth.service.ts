@@ -30,7 +30,8 @@ export class AuthService {
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existing) throw new BadRequestException('El email ya está registrado');
 
-    const consultaRole = await this.prisma.role.findUnique({ where: { codigo: 'CONSULTA' } });
+    const regenteRole = await this.prisma.role.findUnique({ where: { codigo: 'REGENTE' } });
+    if (!regenteRole) throw new BadRequestException('Rol REGENTE no configurado');
 
     const user = await this.prisma.user.create({
       data: {
@@ -38,10 +39,9 @@ export class AuthService {
         passwordHash: hashPassword(dto.password),
         nombre: dto.nombre,
         telefono: dto.telefono,
-        status: UserStatus.PENDIENTE_VERIFICACION,
-        roles: consultaRole
-          ? { create: [{ roleId: consultaRole.id }] }
-          : undefined,
+        status: UserStatus.ACTIVO,
+        emailVerificadoAt: new Date(),
+        roles: { create: [{ roleId: regenteRole.id }] },
       },
     });
 

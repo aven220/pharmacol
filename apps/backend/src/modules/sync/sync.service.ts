@@ -224,30 +224,42 @@ export class SyncService {
               : await this.syncInvimaCum(fuente.datasetId!, fuente.codigo, job.id, force);
 
       if (entidad === 'alertas_sanitarias' || entidad === 'alertas_sanitarias_portal') {
-        await this.sendAlertasDigest(job.id, result);
+        if (this.syncHasChanges(result)) {
+          await this.sendAlertasDigest(job.id, result);
+        }
       }
-      await this.prisma.syncJob.update({
-        where: { id: job.id },
-        data: {
-          status: result.errors > 0 ? SyncJobStatus.PARCIAL : SyncJobStatus.COMPLETADA,
-          finAt: new Date(),
-          registrosLeidos: result.read,
-          registrosInsertados: result.inserted,
-          registrosActualizados: result.updated,
-          registrosOmitidos: result.skipped,
-          registrosError: result.errors,
-        },
-      });
 
-      await this.audit.log({
-        userId,
-        accion: 'SYNC_MANUAL',
-        recurso: 'sync',
-        recursoId: job.id,
-        metadata: result,
-      });
+      if (this.syncHasChanges(result)) {
+        await this.prisma.syncJob.update({
+          where: { id: job.id },
+          data: {
+            status: result.errors > 0 ? SyncJobStatus.PARCIAL : SyncJobStatus.COMPLETADA,
+            finAt: new Date(),
+            registrosLeidos: result.read,
+            registrosInsertados: result.inserted,
+            registrosActualizados: result.updated,
+            registrosOmitidos: result.skipped,
+            registrosError: result.errors,
+          },
+        });
 
-      return { jobId: job.id, ...result };
+        await this.audit.log({
+          userId,
+          accion: 'SYNC_MANUAL',
+          recurso: 'sync',
+          recursoId: job.id,
+          metadata: result,
+        });
+
+        return { jobId: job.id, persisted: true, ...result };
+      }
+
+      await this.prisma.syncJob.delete({ where: { id: job.id } });
+      this.logger.log(
+        `Sync ${fuenteCodigo}: sin cambios (${result.read} leídos, ${result.skipped} omitidos) — no se guarda en historial`,
+      );
+
+      return { jobId: null, persisted: false, ...result };
     } catch (error) {
       await this.prisma.syncJob.update({
         where: { id: job.id },
@@ -1080,6 +1092,10 @@ export class SyncService {
     }
 
     return action;
+  }
+
+  private syncHasChanges(result: SyncProgress): boolean {
+    return result.inserted > 0 || result.updated > 0 || result.errors > 0;
   }
 
   private async sendAlertasDigest(

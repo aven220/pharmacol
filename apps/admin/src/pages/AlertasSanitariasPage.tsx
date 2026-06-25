@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react';
-import { fetchAlertasSanitarias, getErrorMessage, triggerSync } from '../api/client';
+import {
+  fetchAlertasSanitarias,
+  fetchAlertasSyncCuota,
+  getErrorMessage,
+  syncAlertasPortal,
+  triggerSync,
+} from '../api/client';
+import { useAuth } from '../auth/AuthContext';
 
 type Alerta = {
   id: string;
@@ -14,6 +21,13 @@ type Alerta = {
   canalOrigen?: string;
 };
 
+type SyncCuota = {
+  ilimitado: boolean;
+  max: number | null;
+  usado: number;
+  restante: number | null;
+};
+
 const CATEGORIA_LABEL: Record<string, string> = {
   medicamentos: 'Medicamentos',
   alimentos: 'Alimentos',
@@ -22,7 +36,24 @@ const CATEGORIA_LABEL: Record<string, string> = {
   general: 'General',
 };
 
+function formatSyncMessage(result: Record<string, unknown>): string {
+  const inserted = Number(result.inserted ?? result.registrosInsertados ?? 0);
+  const updated = Number(result.updated ?? result.registrosActualizados ?? 0);
+  const read = Number(result.read ?? result.registrosLeidos ?? 0);
+  const persisted = result.persisted !== false;
+
+  if (!persisted && inserted === 0 && updated === 0) {
+    return `Sin alertas nuevas (${read} revisadas en el portal). No se guardó registro en historial.`;
+  }
+
+  return `Portal INVIMA: ${read} revisadas, ${inserted} nuevas, ${updated} actualizadas`;
+}
+
 export default function AlertasSanitariasPage() {
+  const { can } = useAuth();
+  const isAdminSync = can('sync:execute');
+  const canRegenteSync = can('alertas:sync');
+
   const [items, setItems] = useState<Alerta[]>([]);
   const [total, setTotal] = useState(0);
   const [q, setQ] = useState('');
@@ -33,6 +64,17 @@ export default function AlertasSanitariasPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [selected, setSelected] = useState<Alerta | null>(null);
   const [page, setPage] = useState(1);
+  const [cuota, setCuota] = useState<SyncCuota | null>(null);
+
+  async function loadCuota() {
+    if (!canRegenteSync || isAdminSync) return;
+    try {
+      const data = await fetchAlertasSyncCuota();
+      setCuota(data);
+    } catch {
+      setCuota(null);
+    }
+  }
 
   async function load(term = searchTerm, p = page) {
     setLoading(true);
@@ -50,6 +92,7 @@ export default function AlertasSanitariasPage() {
 
   useEffect(() => {
     load().catch(console.error);
+    loadCuota().catch(console.error);
   }, []);
 
   function onSearch(e: React.FormEvent) {
@@ -59,34 +102,45 @@ export default function AlertasSanitariasPage() {
     load(q, 1).catch(console.error);
   }
 
-  async function runSync(fuente: string, label: string) {
+  async function onSyncRegente() {
+    if (cuota && !cuota.ilimitado && (cuota.restante ?? 0) <= 0) {
+      setMessage(`Límite diario alcanzado (${cuota.max} sincronizaciones por día).`);
+      return;
+    }
+
     setSyncing(true);
-    setMessage(`Sincronizando ${label}…`);
+    setMessage('Sincronizando alertas del portal INVIMA…');
+    setError(null);
     try {
-      const result = await triggerSync(fuente);
-      return result;
+      const result = await syncAlertasPortal();
+      setMessage(formatSyncMessage(result as Record<string, unknown>));
+      await Promise.all([load(), loadCuota()]);
+    } catch (e) {
+      setMessage(getErrorMessage(e));
     } finally {
       setSyncing(false);
     }
   }
 
-  async function onSyncPortal() {
+  async function onSyncPortalAdmin() {
+    setSyncing(true);
+    setMessage('Sincronizando portal INVIMA (hoy)…');
+    setError(null);
     try {
-      const portal = await runSync('INVIMA_ALERTAS_PORTAL', 'portal INVIMA (hoy)');
-      setMessage(
-        `Portal INVIMA: ${portal.read ?? portal.registrosLeidos ?? 0} leídas, ` +
-          `${portal.inserted ?? portal.registrosInsertados ?? 0} nuevas, ` +
-          `${portal.updated ?? portal.registrosActualizados ?? 0} actualizadas`,
-      );
+      const result = await triggerSync('INVIMA_ALERTAS_PORTAL');
+      setMessage(formatSyncMessage(result as Record<string, unknown>));
       await load();
     } catch (e) {
       setMessage(getErrorMessage(e));
+    } finally {
+      setSyncing(false);
     }
   }
 
-  async function onSyncAll() {
+  async function onSyncAllAdmin() {
     setSyncing(true);
     setMessage('Sincronizando portal + datos.gov.co…');
+    setError(null);
     try {
       const portal = await triggerSync('INVIMA_ALERTAS_PORTAL');
       const datos = await triggerSync('INVIMA_ALERTAS_SANITARIAS');
@@ -103,13 +157,16 @@ export default function AlertasSanitariasPage() {
   }
 
   const totalPages = Math.max(1, Math.ceil(total / 20));
+  const regenteSinCuota = Boolean(
+    canRegenteSync && !isAdminSync && cuota && !cuota.ilimitado && (cuota.restante ?? 0) <= 0,
+  );
 
   return (
     <div>
       <h2>Alertas Sanitarias INVIMA</h2>
       <p style={{ fontSize: 14, color: '#666' }}>
-        Fuente principal: <strong>app.invima.gov.co/alertas</strong> (alertas del día, 4 veces al día).
-        Complemento: datos.gov.co (texto detallado, actualización mensual).
+        Fuente principal: <strong>app.invima.gov.co/alertas</strong> (alertas del día).
+        {isAdminSync ? ' Como administrador puedes ejecutar sync completo desde aquí o en Sincronización.' : null}
       </p>
 
       {error ? (
@@ -134,18 +191,42 @@ export default function AlertasSanitariasPage() {
             Buscar
           </button>
         </form>
-        <button type="button" className="btn" disabled={syncing} onClick={onSyncPortal}>
-          {syncing ? 'Sincronizando…' : 'Sync portal (hoy)'}
-        </button>
-        <button
-          type="button"
-          className="btn"
-          style={{ background: '#1565c0' }}
-          disabled={syncing}
-          onClick={onSyncAll}
-        >
-          Sync completo
-        </button>
+
+        {isAdminSync ? (
+          <>
+            <button type="button" className="btn" disabled={syncing} onClick={onSyncPortalAdmin}>
+              {syncing ? 'Sincronizando…' : 'Sync portal (hoy)'}
+            </button>
+            <button
+              type="button"
+              className="btn"
+              style={{ background: '#1565c0' }}
+              disabled={syncing}
+              onClick={onSyncAllAdmin}
+            >
+              Sync completo
+            </button>
+          </>
+        ) : null}
+
+        {canRegenteSync && !isAdminSync ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+            <button
+              type="button"
+              className="btn"
+              disabled={syncing || regenteSinCuota}
+              onClick={onSyncRegente}
+            >
+              {syncing ? 'Sincronizando…' : 'Actualizar alertas'}
+            </button>
+            {cuota && !cuota.ilimitado ? (
+              <span style={{ fontSize: 12, color: regenteSinCuota ? '#c62828' : '#666' }}>
+                {cuota.restante} de {cuota.max} sincronizaciones restantes hoy
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+
         <span style={{ fontSize: 13, color: '#666' }}>{total} alerta(s) en total</span>
       </div>
 
@@ -153,8 +234,13 @@ export default function AlertasSanitariasPage() {
         {loading && !items.length ? <p>Cargando…</p> : null}
         {!loading && !items.length ? (
           <p>
-            No hay alertas cargadas. Pulsa <strong>Sync portal (hoy)</strong> o ejecuta{' '}
-            <code>pnpm sync:invima INVIMA_ALERTAS_PORTAL</code>
+            No hay alertas cargadas.
+            {canRegenteSync || isAdminSync ? (
+              <>
+                {' '}
+                Pulsa <strong>Actualizar alertas</strong> o pide a un administrador que sincronice el catálogo.
+              </>
+            ) : null}
           </p>
         ) : (
           <table>

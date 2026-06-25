@@ -36,7 +36,7 @@ export class CreateAdminUserDto {
   @IsEnum(UserStatus)
   status?: UserStatus;
 
-  @ApiProperty({ type: [String], example: ['CONSULTA'] })
+  @ApiProperty({ type: [String], example: ['REGENTE'] })
   @IsArray()
   @IsString({ each: true })
   roleCodigos!: string[];

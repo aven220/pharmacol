@@ -69,7 +69,8 @@ export default function SyncPage() {
         `Completado: ${result.read ?? result.registrosLeidos ?? 0} leídos, ` +
           `${result.inserted ?? result.registrosInsertados ?? 0} insertados, ` +
           `${result.updated ?? result.registrosActualizados ?? 0} actualizados, ` +
-          `${result.skipped ?? result.registrosOmitidos ?? 0} omitidos`,
+          `${result.skipped ?? result.registrosOmitidos ?? 0} omitidos` +
+          (result.persisted === false ? ' (sin cambios — no guardado en historial)' : ''),
       );
       await load();
     } catch (e) {

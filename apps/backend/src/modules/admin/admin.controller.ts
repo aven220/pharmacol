@@ -70,9 +70,16 @@ export class AdminController {
 
   @Get('audit')
   @RequirePermissions('audit:view')
-  @ApiOperation({ summary: 'Logs de auditoría' })
+  @ApiOperation({ summary: 'Logs de auditoría y actividad' })
   audit(@Query() query: PaginationDto) {
     return this.admin.listAuditLogs(query);
+  }
+
+  @Get('actividad-consultas')
+  @RequirePermissions('audit:view')
+  @ApiOperation({ summary: 'Historial de consultas de usuarios' })
+  actividadConsultas(@Query() query: PaginationDto) {
+    return this.admin.listQueryHistory(query);
   }
 
   @Get('fuentes')

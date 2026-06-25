@@ -9,6 +9,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { paginate } from '../../common/dto/pagination.dto';
 import { PaginationDto } from '../../common/dto/pagination-query.dto';
 import { hashPassword } from '../../common/utils/crypto.util';
+import { ACTIVE_ROLE_CODES } from '../../common/constants/roles';
 import { AuditService } from '../audit/audit.service';
 import { CreateAdminUserDto, UpdateAdminUserDto } from './dto/admin-users.dto';
 
@@ -86,12 +87,33 @@ export class AdminService {
 
   async listRoles() {
     return this.prisma.role.findMany({
+      where: { codigo: { in: [...ACTIVE_ROLE_CODES] } },
       include: {
         permissions: { include: { permission: true } },
         _count: { select: { users: true } },
       },
       orderBy: { codigo: 'asc' },
     });
+  }
+
+  async listQueryHistory(dto: PaginationDto) {
+    const page = dto.page ?? 1;
+    const limit = dto.limit ?? 50;
+    const skip = (page - 1) * limit;
+
+    const [items, total] = await Promise.all([
+      this.prisma.queryHistory.findMany({
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: { select: { id: true, email: true, nombre: true } },
+        },
+      }),
+      this.prisma.queryHistory.count(),
+    ]);
+
+    return paginate(items, total, page, limit);
   }
 
   async listAuditLogs(dto: PaginationDto) {
@@ -134,6 +156,13 @@ export class AdminService {
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existing && !existing.deletedAt) {
       throw new ConflictException('El email ya está registrado');
+    }
+
+    const invalidRoles = dto.roleCodigos.filter(
+      (c) => !(ACTIVE_ROLE_CODES as readonly string[]).includes(c),
+    );
+    if (invalidRoles.length > 0) {
+      throw new BadRequestException(`Roles no permitidos: ${invalidRoles.join(', ')}`);
     }
 
     const roles = await this.prisma.role.findMany({
@@ -185,6 +214,12 @@ export class AdminService {
     }
 
     if (dto.roleCodigos?.length) {
+      const invalidRoles = dto.roleCodigos.filter(
+      (c) => !(ACTIVE_ROLE_CODES as readonly string[]).includes(c),
+    );
+      if (invalidRoles.length > 0) {
+        throw new BadRequestException(`Roles no permitidos: ${invalidRoles.join(', ')}`);
+      }
       const roles = await this.prisma.role.findMany({
         where: { codigo: { in: dto.roleCodigos } },
       });

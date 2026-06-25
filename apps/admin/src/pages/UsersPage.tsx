@@ -26,7 +26,7 @@ const emptyForm = {
   nombre: '',
   telefono: '',
   status: 'ACTIVO',
-  roleCodigos: ['CONSULTA'] as string[],
+  roleCodigos: ['REGENTE'] as string[],
 };
 
 export default function UsersPage() {
@@ -76,14 +76,8 @@ export default function UsersPage() {
     setError(null);
   }
 
-  function toggleRole(codigo: string) {
-    setForm((prev) => {
-      const has = prev.roleCodigos.includes(codigo);
-      const roleCodigos = has
-        ? prev.roleCodigos.filter((c) => c !== codigo)
-        : [...prev.roleCodigos, codigo];
-      return { ...prev, roleCodigos };
-    });
+  function selectRole(codigo: string) {
+    setForm((prev) => ({ ...prev, roleCodigos: [codigo] }));
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -237,13 +231,14 @@ export default function UsersPage() {
                 </select>
               </label>
               <fieldset className="roles-fieldset">
-                <legend>Roles</legend>
+                <legend>Rol</legend>
                 {roles.map((r) => (
                   <label key={r.codigo} className="checkbox-label">
                     <input
-                      type="checkbox"
-                      checked={form.roleCodigos.includes(r.codigo)}
-                      onChange={() => toggleRole(r.codigo)}
+                      type="radio"
+                      name="role"
+                      checked={form.roleCodigos[0] === r.codigo}
+                      onChange={() => selectRole(r.codigo)}
                     />
                     {r.nombre} ({r.codigo})
                   </label>

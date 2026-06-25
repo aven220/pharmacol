@@ -58,7 +58,7 @@ export class MailService {
         deletedAt: null,
         roles: {
           some: {
-            role: { codigo: { in: ['ADMINISTRADOR', 'SUPERVISOR'] } },
+            role: { codigo: { in: ['ADMINISTRADOR'] } },
           },
         },
       },
@@ -72,7 +72,7 @@ export class MailService {
     const recipients = await this.resolveRecipients();
     if (!recipients.length) {
       this.logger.warn(
-        'Sin destinatario para digest — configure PHARMACOL_EMAIL o SEED_ADMIN_EMAIL en .env, o un usuario ADMINISTRADOR/SUPERVISOR',
+        'Sin destinatario para digest — configure PHARMACOL_EMAIL o SEED_ADMIN_EMAIL en .env, o un usuario ADMINISTRADOR',
       );
       return false;
     }
