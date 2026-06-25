@@ -10,10 +10,13 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .npmrc ./
 COPY apps/backend ./apps/backend
 COPY database ./database
 
+ENV npm_config_supported_architectures_os=linux \
+    npm_config_supported_architectures_cpu=x64 \
+    npm_config_supported_architectures_libc=musl
+
 RUN pnpm install --frozen-lockfile \
     --filter @pharmacol/backend \
-    --filter @pharmacol/database \
-    --config.optional=false
+    --filter @pharmacol/database
 
 WORKDIR /app/database
 RUN pnpm exec prisma generate

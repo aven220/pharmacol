@@ -6,7 +6,12 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/admin ./apps/admin
 
-RUN pnpm install --frozen-lockfile --filter @pharmacol/admin... --config.optional=false
+# Lockfile hoisted + turbo: solo bins Linux en Docker (evita @turbo/darwin-64)
+ENV npm_config_supported_architectures_os=linux \
+    npm_config_supported_architectures_cpu=x64 \
+    npm_config_supported_architectures_libc=musl
+
+RUN pnpm install --frozen-lockfile --filter @pharmacol/admin...
 
 ARG VITE_API_URL=/pharmacol/v1
 ARG VITE_BASE_PATH=/pharmacol/
