@@ -26,6 +26,18 @@ export class SyncScheduler {
     await this.enqueue('INVIMA_DISPOSITIVOS');
   }
 
+  @Cron(process.env.SYNC_CRON_ALERTAS ?? '0 5 * * *')
+  async scheduleAlertasSync() {
+    if (this.config.get<string>('NODE_ENV') === 'test') return;
+    await this.enqueue('INVIMA_ALERTAS_SANITARIAS');
+  }
+
+  @Cron(process.env.SYNC_CRON_ALERTAS_PORTAL ?? '0 7,11,15,19 * * *')
+  async scheduleAlertasPortalSync() {
+    if (this.config.get<string>('NODE_ENV') === 'test') return;
+    await this.enqueue('INVIMA_ALERTAS_PORTAL');
+  }
+
   private async enqueue(fuenteCodigo: string) {
     const job = await this.queue.add(
       'cron-sync',

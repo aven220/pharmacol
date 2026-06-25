@@ -9,16 +9,23 @@ REMOTE="${PHARMACOL_SERVER_CERT_PATH:-~/pharma-delivery/infra/ssl/fullchain.pem}
 
 mkdir -p "$(dirname "$DEST")"
 
-echo "==> Copiar certificado SSL"
-echo "    Origen: ${HOST}:${REMOTE}"
+echo "==> Certificado SSL para APK Android"
 echo "    Destino: ${DEST}"
 echo ""
 
-scp "${HOST}:${REMOTE}" "$DEST"
+if scp "${HOST}:${REMOTE}" "$DEST" 2>/dev/null; then
+  echo "✓ Copiado desde ${HOST}:${REMOTE}"
+else
+  echo "→ scp no disponible; descargando certificado por HTTPS (openssl)..."
+  if ! echo | openssl s_client -connect 20.5.19.8:443 -servername 20.5.19.8 -showcerts 2>/dev/null \
+    | awk '/BEGIN CERTIFICATE/,/END CERTIFICATE/{print}' > "$DEST"; then
+    echo "ERROR: no se pudo obtener el certificado."
+    exit 1
+  fi
+  echo "✓ Certificado obtenido de https://20.5.19.8"
+fi
 
-echo "✓ Certificado listo."
+openssl x509 -in "$DEST" -noout -subject -dates 2>/dev/null || true
 echo ""
-echo "Siguiente paso (Android, teléfono con USB):"
-echo "  cd apps/mobile-expo"
-echo "  npx expo prebuild --clean"
-echo "  npx expo run:android"
+echo "Siguiente paso:"
+echo "  bash scripts/build-mobile-apk.sh"

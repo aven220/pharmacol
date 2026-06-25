@@ -44,6 +44,7 @@ async function bootstrap(): Promise<void> {
     .addTag('Favoritos')
     .addTag('Historial')
     .addTag('Sincronización INVIMA')
+    .addTag('Alertas Sanitarias')
     .addTag('OCR')
     .addTag('Inteligencia Artificial')
     .addTag('Administración')

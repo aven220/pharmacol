@@ -2,6 +2,17 @@
 # Conecta pharma-edge-prod ↔ pharmacol-web en la misma red Docker
 set -euo pipefail
 
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+if [[ -f .env ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source .env
+  set +a
+fi
+HTTP_PORT="${PHARMACOL_HTTP_PORT:-3906}"
+
 EDGE="${PHARMA_EDGE_CONTAINER:-pharma-edge-prod}"
 WEB="${PHARMACOL_WEB_CONTAINER:-pharmacol-web}"
 
@@ -44,7 +55,7 @@ if docker exec "$EDGE" wget -qO- "http://${WEB}/pharmacol/v1/health" 2>/dev/null
 else
   echo ""
   echo "⚠ Aún no responde. Verifica:"
-  echo "  curl http://127.0.0.1:8080/pharmacol/v1/health"
+  echo "  curl http://127.0.0.1:${HTTP_PORT}/pharmacol/v1/health"
   echo "  docker logs ${WEB} --tail 20"
   exit 1
 fi

@@ -18,6 +18,7 @@ fi
 
 IP="${PHARMACOL_SERVER_IP:-${PHARMACOL_HOST:-20.5.19.8}}"
 DOMAIN="${PHARMACOL_DOMAIN:-}"
+HTTP_PORT="${PHARMACOL_HTTP_PORT:-3906}"
 
 # Si el "dominio" es una IP, usar plantilla IP
 if [[ "$DOMAIN" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || [[ "${PHARMACOL_USE_IP:-}" == "1" ]]; then
@@ -73,9 +74,9 @@ sudo systemctl reload nginx
 
 if [[ "$MODE" == "ip" ]]; then
   echo ""
-  echo "✓ https://${IP}/ → 127.0.0.1:8080"
+  echo "✓ https://${IP}/ → 127.0.0.1:${HTTP_PORT}"
   echo "  (El navegador avisará certificado no confiable — es normal con IP.)"
 else
   echo ""
-  echo "✓ https://${DOMAIN}/ → 127.0.0.1:8080"
+  echo "✓ https://${DOMAIN}/ → 127.0.0.1:${HTTP_PORT}"
 fi

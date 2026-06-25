@@ -63,6 +63,40 @@ Body:
 | `INVIMA_CUM_VIGENTES` | Medicamentos con registro vigente + CUM |
 | `INVIMA_CUM_VENCIDOS` | Medicamentos vencidos |
 | `INVIMA_DISPOSITIVOS` | Dispositivos médicos |
+| `INVIMA_ALERTAS_SANITARIAS` | Alertas sanitarias e informes de seguridad (farmacoepidemiología) |
+
+---
+
+## Alertas Sanitarias
+
+Dos fuentes complementarias:
+
+| Fuente | Código | Actualización | Contenido |
+|--------|--------|---------------|-----------|
+| **Portal INVIMA** (principal) | `INVIMA_ALERTAS_PORTAL` | 4× al día (7, 11, 15, 19h) | Alertas del día en [app.invima.gov.co/alertas](https://app.invima.gov.co/alertas) |
+| **Datos.gov.co** (complemento) | `INVIMA_ALERTAS_SANITARIAS` | 1× al día (5am) | Texto detallado, consolidado mensual (puede ir con retraso) |
+
+```bash
+# Alertas de hoy (recomendado para trabajo diario)
+pnpm sync:invima INVIMA_ALERTAS_PORTAL
+
+# Texto detallado farmacovigilancia (mensual)
+pnpm sync:invima INVIMA_ALERTAS_SANITARIAS
+```
+
+En el panel admin: **Alertas INVIMA → Sync portal (hoy)** o **Sync completo**.
+
+Las alertas del portal se marcan con origen **Portal**; las de datos.gov.co con **Datos.gov**. Si la misma alerta existe en ambas, se unifica por número (ej. `184-2026`) y se conserva el PDF del portal + la descripción de datos.gov cuando esté disponible.
+
+### Resumen diario por correo
+
+Tras cada sync de alertas (manual o cron), se envía un resumen a **tu correo ya configurado** en PharmaCol:
+
+1. `PHARMACOL_EMAIL` o `SEED_ADMIN_EMAIL` del `.env` (el mismo que usan `sync-invima.sh` y el login admin)
+2. Si no hay variable, los usuarios con rol **ADMINISTRADOR** o **SUPERVISOR** activos en la BD
+3. Opcional: `ALERTAS_DIGEST_EMAIL` para destinatarios adicionales (separados por coma)
+
+Para envío real por correo, configura SMTP en `.env`. Sin SMTP, el resumen queda en los **logs del backend** (no se pierde la información).
 
 ---
 
@@ -81,6 +115,8 @@ Con el backend corriendo, se programa solo:
 |----------|---------|--------|
 | `SYNC_CRON_CUM` | `0 3 * * *` | CUM vigentes (3am) |
 | `SYNC_CRON_DM` | `0 4 * * *` | Dispositivos (4am) |
+| `SYNC_CRON_ALERTAS` | `0 5 * * *` | Alertas datos.gov (5am) |
+| `SYNC_CRON_ALERTAS_PORTAL` | `0 7,11,15,19 * * *` | Portal INVIMA (4× día) |
 
 ---
 

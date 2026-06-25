@@ -229,6 +229,6 @@ export async function checkServerHealth(
     return { ok: true, url, latencyMs: Date.now() - start };
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Error de red';
-    return { ok: false, url, error: `${msg} → ${healthUrl}` };
+    return { ok: false, url, error: msg };
   }
 }

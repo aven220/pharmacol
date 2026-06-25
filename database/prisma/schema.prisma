@@ -680,6 +680,36 @@ model AlertaFalsificacion {
 }
 
 // =============================================================================
+// ALERTAS SANITARIAS INVIMA
+// =============================================================================
+
+model AlertaSanitaria {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  numeroAlerta    String    @unique @map("numero_alerta") @db.VarChar(30)
+  fechaAlerta     DateTime  @map("fecha_alerta") @db.Date
+  titulo          String    @db.VarChar(500)
+  tituloNorm      String    @map("titulo_normalizado") @db.VarChar(500)
+  descripcion     String    @db.Text
+  fuenteAlerta    String?   @map("fuente_alerta") @db.VarChar(100)
+  tipoDocumento   String?   @map("tipo_documento") @db.VarChar(100)
+  documentoUrl    String?   @map("documento_url") @db.Text
+  conceptoSempb   String?   @map("concepto_sempb") @db.Text
+  acta            String?   @db.VarChar(100)
+  categoriaProducto String? @map("categoria_producto") @db.VarChar(80)
+  canalOrigen     String    @default("DATOS_GOV") @map("canal_origen") @db.VarChar(20)
+  hashContenido   String    @map("hash_contenido") @db.VarChar(64)
+  fuente          DataOrigin @default(INVIMA)
+  syncVersion     BigInt    @default(0) @map("sync_version")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([fechaAlerta(sort: Desc)])
+  @@index([tituloNorm])
+  @@index([hashContenido])
+  @@map("alertas_sanitarias")
+}
+
+// =============================================================================
 // USUARIO: FAVORITOS E HISTORIAL
 // =============================================================================
 

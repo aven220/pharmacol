@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -16,6 +16,14 @@ import { applyApiBaseUrl, checkServerHealth, loginApi, getErrorMessage } from '@
 import { PRODUCTION_API_URL } from '@/config/api';
 import { useAuthStore } from '@/store/auth.store';
 
+function friendlyConnectionError(raw?: string): string {
+  if (!raw) return 'No se puede conectar al servidor';
+  if (/network request failed|certificate|ssl|handshake|trust/i.test(raw)) {
+    return 'No se pudo verificar el certificado HTTPS del servidor. Reinstala la APK generada con el certificado incluido.';
+  }
+  return raw;
+}
+
 export default function LoginScreen() {
   const router = useRouter();
   const setSession = useAuthStore((s) => s.setSession);
@@ -26,22 +34,25 @@ export default function LoginScreen() {
   const [serverOk, setServerOk] = useState<boolean | null>(null);
   const [checking, setChecking] = useState(true);
 
-  useEffect(() => {
-    (async () => {
-      setChecking(true);
-      await applyApiBaseUrl();
-      const result = await checkServerHealth();
-      setServerOk(result.ok);
-      if (!result.ok) {
-        setError(result.error ?? 'No se puede conectar al servidor');
-      }
-      setChecking(false);
-    })();
+  const probeServer = useCallback(async () => {
+    setChecking(true);
+    setError(null);
+    await applyApiBaseUrl();
+    const result = await checkServerHealth();
+    setServerOk(result.ok);
+    if (!result.ok) {
+      setError(friendlyConnectionError(result.error));
+    }
+    setChecking(false);
   }, []);
+
+  useEffect(() => {
+    probeServer();
+  }, [probeServer]);
 
   async function onSubmit() {
     if (!serverOk) {
-      setError('Sin conexión al servidor. Verifica tu red e intenta de nuevo.');
+      setError('Sin conexión al servidor. Pulsa Reintentar.');
       return;
     }
     setLoading(true);
@@ -80,6 +91,7 @@ export default function LoginScreen() {
         <TextInput
           style={styles.input}
           placeholder="Correo"
+          placeholderTextColor="#888"
           autoCapitalize="none"
           keyboardType="email-address"
           value={email}
@@ -88,6 +100,7 @@ export default function LoginScreen() {
         <TextInput
           style={styles.input}
           placeholder="Contraseña"
+          placeholderTextColor="#888"
           secureTextEntry
           value={password}
           onChangeText={setPassword}
@@ -95,8 +108,14 @@ export default function LoginScreen() {
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
+        {!serverOk && !checking ? (
+          <Pressable style={styles.retryBtn} onPress={probeServer}>
+            <Text style={styles.retryText}>Reintentar conexión</Text>
+          </Pressable>
+        ) : null}
+
         <Pressable
-          style={styles.button}
+          style={[styles.button, (!serverOk || loading || checking) && styles.buttonDisabled]}
           onPress={onSubmit}
           disabled={loading || checking || !serverOk}
         >
@@ -106,16 +125,6 @@ export default function LoginScreen() {
             <Text style={styles.buttonText}>Iniciar sesión</Text>
           )}
         </Pressable>
-
-        {!serverOk && !checking ? (
-          <Text style={styles.help}>
-            Comprueba tu conexión a internet. El servidor está configurado en la app.
-          </Text>
-        ) : null}
-
-        {__DEV__ ? (
-          <Text style={styles.debug}>API: {PRODUCTION_API_URL}</Text>
-        ) : null}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -123,7 +132,7 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   container: { flexGrow: 1, justifyContent: 'center', padding: 24, backgroundColor: '#fff' },
-  title: { fontSize: 28, fontWeight: '700', textAlign: 'center', marginTop: 12 },
+  title: { fontSize: 28, fontWeight: '700', textAlign: 'center', marginTop: 12, color: '#111' },
   subtitle: { textAlign: 'center', color: '#666', marginBottom: 16 },
   statusBox: { alignItems: 'center', marginBottom: 20 },
   statusText: { fontSize: 14, fontWeight: '600' },
@@ -136,7 +145,15 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 12,
     fontSize: 15,
+    color: '#111',
+    backgroundColor: '#fff',
   },
+  retryBtn: {
+    alignItems: 'center',
+    padding: 12,
+    marginBottom: 8,
+  },
+  retryText: { color: '#006874', fontWeight: '600', fontSize: 14 },
   button: {
     backgroundColor: '#006874',
     borderRadius: 12,
@@ -144,8 +161,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 8,
   },
+  buttonDisabled: { opacity: 0.5 },
   buttonText: { color: '#fff', fontWeight: '600', fontSize: 16 },
   error: { color: '#c62828', marginBottom: 8, textAlign: 'center', fontSize: 13 },
-  help: { marginTop: 16, fontSize: 12, color: '#888', textAlign: 'center', lineHeight: 18 },
-  debug: { marginTop: 16, fontSize: 10, color: '#bbb', textAlign: 'center' },
 });

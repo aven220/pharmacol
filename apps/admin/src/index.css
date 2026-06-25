@@ -105,6 +105,9 @@ label { display: block; font-size: 14px; margin-bottom: 4px; }
 .error { color: #c62828; font-size: 14px; }
 
 /* Consulta farmacéutica */
+.consulta-page { max-width: 1100px; }
+.consulta-intro { color: #555; font-size: 14px; margin-bottom: 16px; line-height: 1.5; }
+.consulta-empty ul { text-align: left; display: inline-block; margin: 12px auto 0; color: #666; font-size: 14px; }
 .search-input-wrap { position: relative; margin-bottom: 8px; }
 .search-input-wrap input { margin-bottom: 0; font-size: 16px; }
 .search-spinner { position: absolute; right: 12px; top: 12px; font-size: 13px; color: #006874; }
@@ -121,24 +124,50 @@ label { display: block; font-size: 14px; margin-bottom: 4px; }
 .chip-active { background: #006874; color: #fff; }
 .hint { color: #888; font-size: 13px; }
 .empty-msg { text-align: center; color: #666; margin-top: 24px; }
-.search-section h3 { color: #006874; font-size: 15px; margin: 16px 0 8px; }
+.search-section h3 { color: #006874; font-size: 15px; margin: 16px 0 10px; }
+.med-results-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 12px;
+}
 .med-card {
   display: block;
   background: #fff;
   border-radius: 12px;
-  padding: 14px 16px;
-  margin-bottom: 8px;
+  padding: 16px 18px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.08);
   color: inherit;
-  transition: box-shadow 0.15s;
+  transition: box-shadow 0.15s, transform 0.1s;
+  border: 1px solid #eee;
+  height: 100%;
 }
-.med-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
-.med-card-highlight { background: #e8f4f6; border: 1px solid #b2dfe5; }
-.med-card-title { display: block; font-size: 16px; line-height: 1.4; color: #111; }
-.med-card-meta { color: #666; font-size: 13px; margin-top: 4px; }
-.med-card-pres { color: #006874; font-size: 12px; font-weight: 600; margin-top: 6px; }
-.med-card-footer { display: flex; justify-content: space-between; margin-top: 8px; gap: 8px; flex-wrap: wrap; }
-.med-badge { font-size: 12px; color: #006874; font-weight: 600; }
+.med-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); transform: translateY(-1px); }
+.med-card-highlight { background: #f0fafb; border-color: #b2dfe5; }
+.med-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+.med-card-title { font-size: 16px; line-height: 1.35; color: #111; flex: 1; }
+.med-info-grid {
+  display: grid;
+  grid-template-columns: minmax(110px, 38%) 1fr;
+  gap: 4px 10px;
+  margin: 0;
+  font-size: 13px;
+}
+.med-info-grid dt { color: #777; margin: 0; font-weight: 500; }
+.med-info-grid dd { margin: 0; color: #222; line-height: 1.4; }
+.med-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.med-estado {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.med-estado-vigente { background: #e8f5e9; color: #2e7d32; }
+.med-estado-alerta { background: #ffebee; color: #c62828; }
+.med-estado-otro { background: #f5f5f5; color: #666; }
+.med-card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; padding-top: 10px; border-top: 1px solid #f0f0f0; gap: 8px; flex-wrap: wrap; }
+.med-card-pres { color: #006874; font-size: 12px; font-weight: 600; }
 .med-score { font-size: 11px; color: #888; }
 .back-link { display: inline-block; margin-bottom: 16px; font-size: 14px; }
 .med-meta { color: #666; margin: 4px 0; }

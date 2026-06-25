@@ -52,6 +52,42 @@ export const DATA_SOURCES = [
     },
   },
   {
+    codigo: 'INVIMA_ALERTAS_SANITARIAS',
+    nombre: 'Alertas Sanitarias — Farmacovigilancia INVIMA',
+    formato: DataSourceFormat.API_SOCRATA,
+    urlBase: 'https://www.datos.gov.co/resource',
+    datasetId: 'jj2d-tee6',
+    frecuenciaCron: '0 5 * * *',
+    metadata: {
+      descripcion:
+        'Consolidado mensual de alertas e informes de seguridad (datos.gov.co — puede ir con retraso)',
+      entidadDestino: 'alertas_sanitarias',
+      columnas: [
+        'numero_columna',
+        'fecha',
+        'principio_activo',
+        'descripci_n',
+        'fuente_de_la_alerta',
+        'comunicado_invima',
+        'concepto_sempb_de_la_comision',
+        'acta',
+      ],
+    },
+  },
+  {
+    codigo: 'INVIMA_ALERTAS_PORTAL',
+    nombre: 'Alertas Sanitarias — Portal INVIMA (app.invima.gov.co)',
+    formato: DataSourceFormat.JSON,
+    urlBase: 'https://app.invima.gov.co/alertas',
+    datasetId: null,
+    frecuenciaCron: '0 7,11,15,19 * * *',
+    metadata: {
+      descripcion:
+        'Portal oficial INVIMA — alertas del día, todas las categorías de productos',
+      entidadDestino: 'alertas_sanitarias_portal',
+    },
+  },
+  {
     codigo: 'INVIMA_RSA_PDF',
     nombre: 'Listado RSA Medicamentos (PDF)',
     formato: DataSourceFormat.PDF,

@@ -19,6 +19,7 @@ import { HealthModule } from './modules/health/health.module';
 import { OcrModule } from './modules/ocr/ocr.module';
 import { IaModule } from './modules/ia/ia.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { AlertasSanitariasModule } from './modules/alertas-sanitarias/alertas-sanitarias.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { AdminModule } from './modules/admin/admin.module';
     OcrModule,
     IaModule,
     AdminModule,
+    AlertasSanitariasModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },

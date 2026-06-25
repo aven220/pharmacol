@@ -11,7 +11,15 @@ if [ -f "$ROOT/.env" ]; then
   set +a
 fi
 
-export DATABASE_URL="${DATABASE_URL:-postgresql://pharmacol:pharmacol_dev@localhost:5433/pharmacol?schema=public}"
+export DATABASE_URL="${DATABASE_URL:-postgresql://pharmacol:pharmacol_dev@localhost:5543/pharmacol?schema=public}"
 
 cd "$ROOT/database"
+
+# Binarios del workspace raíz (evita symlink roto en database/node_modules/prisma)
+export PATH="$ROOT/node_modules/.bin:$PATH"
+
+if [ "${1:-}" = "prisma" ]; then
+  exec "$ROOT/node_modules/.bin/prisma" "${@:2}"
+fi
+
 exec "$@"

@@ -5,11 +5,15 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-COMPOSE="docker compose -p pharmacol -f docker-compose.prod.yml"
+if [ "${PHARMACOL_USE_DOCKER_SEED:-}" = "1" ]; then
+  COMPOSE="docker compose -p pharmacol -f docker-compose.prod.yml"
+  echo "==> Seed fuentes INVIMA (Docker / servidor)..."
+  $COMPOSE up -d postgres
+  $COMPOSE --profile setup run --rm --build seed sh -c \
+    "pnpm exec prisma generate && pnpm exec tsx scripts/seed-fuentes-cli.ts"
+else
+  echo "==> Seed fuentes INVIMA (local Mac)..."
+  bash "$ROOT/scripts/run-with-env.sh" tsx scripts/seed-fuentes-cli.ts
+fi
 
-echo "==> Seed fuentes INVIMA (data_sources)..."
-$COMPOSE up -d postgres >/dev/null
-$COMPOSE --profile setup run --rm --build seed sh -c \
-  "pnpm exec prisma generate && pnpm exec tsx scripts/seed-fuentes-cli.ts"
-
-echo "✓ Fuentes listas. Recarga https://20.5.19.8/pharmacol/sync"
+echo "✓ Fuentes listas. Recarga el admin → Sincronización o Alertas INVIMA."

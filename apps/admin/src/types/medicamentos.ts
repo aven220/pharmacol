@@ -3,8 +3,11 @@ export type MedicamentoSummary = {
   nombreComercial: string;
   numeroRegistro?: string;
   laboratorio?: string;
+  titular?: string;
   concentracion?: string;
   formaFarmaceutica?: string;
+  principioActivo?: string;
+  cumPreview?: string;
   estadoRegistro?: string;
   numPresentaciones?: number;
   score?: number;
@@ -82,19 +85,41 @@ function mapPresentacion(raw: Record<string, unknown>): PresentacionItem {
 export function mapMedicamentoSummary(raw: Record<string, unknown>): MedicamentoSummary {
   const registro = raw.registroInvima as Record<string, unknown> | undefined;
   const lab = raw.laboratorio as Record<string, unknown> | undefined;
-  const codigos = raw.codigosCum as unknown[] | undefined;
+  const titularObj = raw.titular as Record<string, unknown> | undefined;
+  const codigos = (raw.codigosCum as Array<Record<string, unknown>>) ?? [];
+  const principios = (raw.principiosActivos as Array<Record<string, unknown>>) ?? [];
+
+  const principioActivo = principios
+    .map((p) => {
+      const pa = p.principioActivo as Record<string, unknown> | undefined;
+      const nombre = String(pa?.nombreOficial ?? pa?.nombreNormalizado ?? '');
+      const conc = p.concentracion ? ` ${p.concentracion}` : '';
+      return nombre ? `${nombre}${conc}`.trim() : '';
+    })
+    .filter(Boolean)
+    .join(' · ');
+
   return {
     id: String(raw.id),
     nombreComercial: String(raw.nombreComercial ?? ''),
-    numeroRegistro: (registro?.numeroRegistro as string) ?? (raw.numeroRegistro as string),
+    numeroRegistro:
+      (raw.numeroRegistro as string) ??
+      (registro?.numeroRegistro as string) ??
+      undefined,
     laboratorio: (lab?.razonSocial as string) ?? (raw.laboratorio as string),
+    titular: titularObj?.razonSocial as string | undefined,
     concentracion: raw.concentracion as string | undefined,
     formaFarmaceutica: raw.formaFarmaceutica as string | undefined,
+    principioActivo: principioActivo || (raw.principioActivo as string | undefined),
+    cumPreview:
+      (raw.cumPreview as string) ??
+      (codigos[0]?.codigoCompleto as string) ??
+      undefined,
     estadoRegistro: raw.estadoRegistro as string | undefined,
     numPresentaciones:
       (raw.numPresentaciones as number) ??
       (raw._count as { codigosCum?: number })?.codigosCum ??
-      codigos?.length,
+      (codigos.length > 0 ? codigos.length : undefined),
     score: raw.score as number | undefined,
   };
 }

@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pharmacol_dev}
       POSTGRES_DB: pharmacol
     ports:
-      - "5433:5432"
+      - "${POSTGRES_HOST_PORT:-5543}:5432"
     volumes:
       - pharmacol_pg_data:/var/lib/postgresql/data
       - ./database/scripts/001_extensions.sql:/docker-entrypoint-initdb.d/001_extensions.sql:ro
@@ -24,7 +24,7 @@ services:
     container_name: pharmacol-redis
     restart: unless-stopped
     ports:
-      - "6380:6379"
+      - "${REDIS_HOST_PORT:-6391}:6379"
     volumes:
       - pharmacol_redis_data:/data
     healthcheck:

@@ -8,6 +8,7 @@ import AuditPage from './pages/AuditPage';
 import ConsultaPage from './pages/ConsultaPage';
 import MedicamentoPresentacionesPage from './pages/MedicamentoPresentacionesPage';
 import MedicamentoFichaPage from './pages/MedicamentoFichaPage';
+import AlertasSanitariasPage from './pages/AlertasSanitariasPage';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   if (!getToken()) return <Navigate to="/login" replace />;
@@ -28,6 +29,7 @@ function Layout({ children }: { children: React.ReactNode }) {
         <h1>PharmaCol</h1>
         <nav>
           <NavLink to="/consulta">Consulta</NavLink>
+          <NavLink to="/alertas">Alertas INVIMA</NavLink>
           <NavLink to="/" end>Dashboard</NavLink>
           <NavLink to="/users">Usuarios</NavLink>
           <NavLink to="/sync">Sincronización</NavLink>
@@ -58,6 +60,7 @@ export default function App() {
                   <Route path="/consulta" element={<ConsultaPage />} />
                   <Route path="/consulta/:id" element={<MedicamentoPresentacionesPage />} />
                   <Route path="/consulta/:id/ficha" element={<MedicamentoFichaPage />} />
+                  <Route path="/alertas" element={<AlertasSanitariasPage />} />
                   <Route path="/" element={<DashboardPage />} />
                   <Route path="/users" element={<UsersPage />} />
                   <Route path="/sync" element={<SyncPage />} />

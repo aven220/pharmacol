@@ -13,6 +13,13 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { extractEmbalaje } from '../../common/utils/presentation.util';
+import { MailService, type AlertaDigestItem } from '../notifications/mail.service';
+import {
+  INVIMA_PORTAL_CATEGORIES,
+  buildInvimaPortalPageUrl,
+  parseInvimaPortalHtml,
+  type InvimaPortalAlerta,
+} from './invima-portal.parser';
 
 interface SocrataRecord {
   registrosanitario?: string;
@@ -94,6 +101,48 @@ function normalizeDispositivoRecord(raw: Record<string, unknown>): DispositivoRe
   };
 }
 
+interface AlertaSanitariaRecord {
+  numeroColumna?: string;
+  fecha?: string;
+  principioActivo?: string;
+  descripcion?: string;
+  fuenteAlerta?: string;
+  comunicadoInvima?: string;
+  conceptoSempb?: string;
+  acta?: string;
+}
+
+function normalizeAlertaRecord(raw: Record<string, unknown>): AlertaSanitariaRecord {
+  return {
+    numeroColumna: pickField(raw, 'numero_columna', 'numero'),
+    fecha: pickField(raw, 'fecha'),
+    principioActivo: pickField(raw, 'principio_activo', 'principioactivo'),
+    descripcion: pickField(raw, 'descripci_n', 'descripcion', 'descripci_n'),
+    fuenteAlerta: pickField(raw, 'fuente_de_la_alerta', 'fuente_alerta'),
+    comunicadoInvima: pickField(raw, 'comunicado_invima'),
+    conceptoSempb: pickField(raw, 'concepto_sempb_de_la_comision', 'concepto_sempb'),
+    acta: pickField(raw, 'acta'),
+  };
+}
+
+function parseComunicadoInvima(raw?: string): { tipo?: string; url?: string } {
+  if (!raw) return {};
+  const lines = raw.split('\n').map((l) => l.trim()).filter(Boolean);
+  const url = lines.find((l) => /^https?:\/\//i.test(l));
+  return { tipo: lines[0], url };
+}
+
+function extractNumeroAlerta(comunicado?: string, numeroColumna?: string, fecha?: string): string {
+  if (comunicado) {
+    const decoded = decodeURIComponent(comunicado);
+    const match = decoded.match(/Alerta\s*No[_#.\s]*(\d+-\d{4})/i);
+    if (match) return match[1];
+  }
+  const year = fecha?.slice(0, 4) ?? new Date().getFullYear().toString();
+  if (numeroColumna) return `${numeroColumna}-${year}`;
+  return `sin-numero-${year}-${createHash('sha256').update(comunicado ?? fecha ?? '').digest('hex').slice(0, 8)}`;
+}
+
 function normalize(text: string | undefined | null): string {
   if (!text) return '';
   return text
@@ -122,6 +171,7 @@ export class SyncService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly audit: AuditService,
+    private readonly mail: MailService,
   ) {}
 
   async listJobs(page = 1, limit = 20) {
@@ -163,10 +213,19 @@ export class SyncService {
 
     try {
       const metadata = (fuente.metadata ?? {}) as { entidadDestino?: string };
+      const entidad = metadata.entidadDestino;
       const result =
-        metadata.entidadDestino === 'dispositivos_medicos'
+        entidad === 'dispositivos_medicos'
           ? await this.syncInvimaDispositivos(fuente.datasetId!, fuente.codigo, job.id)
-          : await this.syncInvimaCum(fuente.datasetId!, fuente.codigo, job.id, force);
+          : entidad === 'alertas_sanitarias'
+            ? await this.syncInvimaAlertasSanitarias(fuente.datasetId!, fuente.codigo, job.id, force)
+            : entidad === 'alertas_sanitarias_portal'
+              ? await this.syncInvimaAlertasPortal(fuente.codigo, job.id, force)
+              : await this.syncInvimaCum(fuente.datasetId!, fuente.codigo, job.id, force);
+
+      if (entidad === 'alertas_sanitarias' || entidad === 'alertas_sanitarias_portal') {
+        await this.sendAlertasDigest(job.id, result);
+      }
       await this.prisma.syncJob.update({
         where: { id: job.id },
         data: {
@@ -701,5 +760,361 @@ export class SyncService {
     });
 
     return action;
+  }
+
+  private async syncInvimaAlertasSanitarias(
+    datasetId: string,
+    fuenteCodigo: string,
+    jobId: string,
+    force = false,
+  ) {
+    const appToken = this.config.get<string>('INVIMA_APP_TOKEN');
+    let offset = 0;
+    const batchSize = 1000;
+    let read = 0;
+    let inserted = 0;
+    let updated = 0;
+    let skipped = 0;
+    let errors = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const url = new URL(`https://www.datos.gov.co/resource/${datasetId}.json`);
+      url.searchParams.set('$limit', String(batchSize));
+      url.searchParams.set('$offset', String(offset));
+      url.searchParams.set('$order', 'fecha DESC');
+
+      const headers: Record<string, string> = { Accept: 'application/json' };
+      if (appToken) headers['X-App-Token'] = appToken;
+
+      const response = await fetch(url.toString(), { headers });
+      if (!response.ok) {
+        throw new Error(`INVIMA alertas API error: ${response.status} ${response.statusText}`);
+      }
+
+      const records = (await response.json()) as Record<string, unknown>[];
+      if (!records.length) break;
+
+      for (const [index, raw] of records.entries()) {
+        read++;
+        const record = normalizeAlertaRecord(raw);
+        try {
+          const action = await this.upsertAlertaSanitariaRecord(record, fuenteCodigo, jobId, force);
+          if (action === 'INSERT') inserted++;
+          else if (action === 'UPDATE') updated++;
+          else skipped++;
+        } catch (err) {
+          errors++;
+          await this.prisma.syncError.create({
+            data: {
+              syncJobId: jobId,
+              filaNumero: offset + index + 1,
+              errorMensaje: err instanceof Error ? err.message : 'Error desconocido',
+              valor: JSON.stringify(record),
+            },
+          });
+        }
+      }
+
+      offset += records.length;
+      hasMore = records.length === batchSize;
+      await this.updateJobProgress(jobId, { read, inserted, updated, skipped, errors });
+      this.logger.log(
+        `Sync alertas ${fuenteCodigo}: ${offset} leídos | +${inserted} ins | ~${updated} upd | ${skipped} omit`,
+      );
+    }
+
+    return { read, inserted, updated, skipped, errors };
+  }
+
+  private async upsertAlertaSanitariaRecord(
+    record: AlertaSanitariaRecord,
+    fuenteCodigo: string,
+    jobId: string,
+    force = false,
+  ): Promise<'INSERT' | 'UPDATE' | 'SKIP'> {
+    const titulo = record.principioActivo?.trim();
+    const descripcion = record.descripcion?.trim();
+    if (!titulo || !descripcion || !record.fecha) return 'SKIP';
+
+    const numeroAlerta = extractNumeroAlerta(
+      record.comunicadoInvima,
+      record.numeroColumna,
+      record.fecha,
+    );
+    const hash = createHash('sha256').update(JSON.stringify(record)).digest('hex');
+    const claveNatural = numeroAlerta;
+    const { tipo, url } = parseComunicadoInvima(record.comunicadoInvima);
+    const fechaAlerta = new Date(record.fecha);
+
+    const existingStaging = await this.prisma.syncStagingRecord.findUnique({
+      where: { fuenteCodigo_claveNatural: { fuenteCodigo, claveNatural } },
+    });
+    if (existingStaging?.hashContenido === hash && !force) return 'SKIP';
+
+    await this.prisma.syncStagingRecord.upsert({
+      where: { fuenteCodigo_claveNatural: { fuenteCodigo, claveNatural } },
+      update: { payload: record as object, hashContenido: hash, procesado: false },
+      create: {
+        fuenteCodigo,
+        claveNatural,
+        payload: record as object,
+        hashContenido: hash,
+      },
+    });
+
+    const existing = await this.prisma.alertaSanitaria.findUnique({
+      where: { numeroAlerta },
+    });
+
+    const data = {
+      numeroAlerta,
+      fechaAlerta,
+      titulo: titulo.slice(0, 500),
+      tituloNorm: normalize(titulo).slice(0, 500),
+      descripcion,
+      fuenteAlerta: record.fuenteAlerta?.slice(0, 100),
+      tipoDocumento: tipo?.slice(0, 100),
+      documentoUrl: url,
+      conceptoSempb: record.conceptoSempb,
+      acta: record.acta?.slice(0, 100),
+      hashContenido: hash,
+      fuente: DataOrigin.INVIMA,
+      canalOrigen: existing?.canalOrigen === 'PORTAL' ? 'PORTAL' : 'DATOS_GOV',
+    };
+
+    let action: 'INSERT' | 'UPDATE' | 'SKIP';
+    if (existing) {
+      if (existing.hashContenido === hash && !force) {
+        action = 'SKIP';
+      } else {
+        await this.prisma.alertaSanitaria.update({
+          where: { id: existing.id },
+          data: { ...data, syncVersion: { increment: 1 } },
+        });
+        action = 'UPDATE';
+      }
+    } else {
+      await this.prisma.alertaSanitaria.create({
+        data: { ...data, syncVersion: BigInt(1) },
+      });
+      action = 'INSERT';
+    }
+
+    if (action !== 'SKIP') {
+      await this.prisma.syncRecord.create({
+        data: {
+          syncJobId: jobId,
+          entidadTipo: 'alerta_sanitaria',
+          claveNatural,
+          accion: action === 'INSERT' ? SyncRecordAction.INSERT : SyncRecordAction.UPDATE,
+          hashNuevo: hash,
+          hashAnterior: existing?.hashContenido,
+        },
+      });
+    }
+
+    return action;
+  }
+
+  private async syncInvimaAlertasPortal(fuenteCodigo: string, jobId: string, force = false) {
+    const maxPages = Number(this.config.get<string>('INVIMA_PORTAL_MAX_PAGES') ?? 25);
+    const lookbackDays = Number(this.config.get<string>('INVIMA_PORTAL_LOOKBACK_DAYS') ?? 120);
+    const delayMs = Number(this.config.get<string>('INVIMA_PORTAL_DELAY_MS') ?? 350);
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - lookbackDays);
+
+    let read = 0;
+    let inserted = 0;
+    let updated = 0;
+    let skipped = 0;
+    let errors = 0;
+
+    for (const category of INVIMA_PORTAL_CATEGORIES) {
+      let stopCategory = false;
+      for (let page = 0; page < maxPages && !stopCategory; page++) {
+        const url = buildInvimaPortalPageUrl(category.slug, page);
+        let html: string;
+        try {
+          const response = await fetch(url, {
+            headers: { 'User-Agent': 'PharmaCol/1.0 (+https://pharmacol.co)' },
+          });
+          if (!response.ok) {
+            throw new Error(`Portal INVIMA HTTP ${response.status} en ${category.slug} p${page}`);
+          }
+          html = await response.text();
+        } catch (err) {
+          errors++;
+          await this.prisma.syncError.create({
+            data: {
+              syncJobId: jobId,
+              filaNumero: read + 1,
+              errorMensaje: err instanceof Error ? err.message : 'Error portal INVIMA',
+              valor: url,
+            },
+          });
+          break;
+        }
+
+        const rows = parseInvimaPortalHtml(html, category.codigo);
+        if (!rows.length) break;
+
+        let oldestOnPage = new Date();
+        for (const [index, row] of rows.entries()) {
+          read++;
+          const fecha = new Date(row.fecha);
+          if (fecha < oldestOnPage) oldestOnPage = fecha;
+          try {
+            const action = await this.upsertAlertaPortalRecord(row, fuenteCodigo, jobId, force);
+            if (action === 'INSERT') inserted++;
+            else if (action === 'UPDATE') updated++;
+            else skipped++;
+          } catch (err) {
+            errors++;
+            await this.prisma.syncError.create({
+              data: {
+                syncJobId: jobId,
+                filaNumero: read,
+                errorMensaje: err instanceof Error ? err.message : 'Error desconocido',
+                valor: JSON.stringify(row),
+              },
+            });
+          }
+          if (index === rows.length - 1 && (index + 1) % 10 === 0) {
+            await this.updateJobProgress(jobId, { read, inserted, updated, skipped, errors });
+          }
+        }
+
+        if (oldestOnPage < cutoff) stopCategory = true;
+        this.logger.log(
+          `Portal ${category.codigo} p${page}: ${rows.length} alertas | acum ${read} leídas`,
+        );
+        if (delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
+      }
+    }
+
+    await this.updateJobProgress(jobId, { read, inserted, updated, skipped, errors });
+    return { read, inserted, updated, skipped, errors };
+  }
+
+  private async upsertAlertaPortalRecord(
+    record: InvimaPortalAlerta,
+    fuenteCodigo: string,
+    jobId: string,
+    force = false,
+  ): Promise<'INSERT' | 'UPDATE' | 'SKIP'> {
+    const titulo = record.titulo.trim();
+    const numeroAlerta = record.numeroAlerta;
+    const hash = createHash('sha256').update(JSON.stringify(record)).digest('hex');
+    const claveNatural = numeroAlerta;
+    const fechaAlerta = new Date(record.fecha);
+
+    const existingStaging = await this.prisma.syncStagingRecord.findUnique({
+      where: { fuenteCodigo_claveNatural: { fuenteCodigo, claveNatural } },
+    });
+    if (existingStaging?.hashContenido === hash && !force) return 'SKIP';
+
+    await this.prisma.syncStagingRecord.upsert({
+      where: { fuenteCodigo_claveNatural: { fuenteCodigo, claveNatural } },
+      update: { payload: record as object, hashContenido: hash, procesado: false },
+      create: {
+        fuenteCodigo,
+        claveNatural,
+        payload: record as object,
+        hashContenido: hash,
+      },
+    });
+
+    const existing = await this.prisma.alertaSanitaria.findUnique({
+      where: { numeroAlerta },
+    });
+
+    const descripcion =
+      existing?.descripcion && existing.descripcion.length > titulo.length
+        ? existing.descripcion
+        : titulo;
+
+    const data = {
+      numeroAlerta,
+      fechaAlerta,
+      titulo: titulo.slice(0, 500),
+      tituloNorm: normalize(titulo).slice(0, 500),
+      descripcion,
+      tipoDocumento: record.tipoDocumento.slice(0, 100),
+      documentoUrl: record.documentoUrl,
+      categoriaProducto: record.categoriaProducto,
+      canalOrigen: 'PORTAL',
+      hashContenido: hash,
+      fuente: DataOrigin.INVIMA,
+    };
+
+    let action: 'INSERT' | 'UPDATE' | 'SKIP';
+    if (existing) {
+      if (existing.hashContenido === hash && !force) {
+        action = 'SKIP';
+      } else {
+        await this.prisma.alertaSanitaria.update({
+          where: { id: existing.id },
+          data: { ...data, syncVersion: { increment: 1 } },
+        });
+        action = 'UPDATE';
+      }
+    } else {
+      await this.prisma.alertaSanitaria.create({
+        data: { ...data, syncVersion: BigInt(1) },
+      });
+      action = 'INSERT';
+    }
+
+    if (action !== 'SKIP') {
+      await this.prisma.syncRecord.create({
+        data: {
+          syncJobId: jobId,
+          entidadTipo: 'alerta_sanitaria',
+          claveNatural,
+          accion: action === 'INSERT' ? SyncRecordAction.INSERT : SyncRecordAction.UPDATE,
+          hashNuevo: hash,
+          hashAnterior: existing?.hashContenido,
+        },
+      });
+    }
+
+    return action;
+  }
+
+  private async sendAlertasDigest(
+    jobId: string,
+    result: { read: number; inserted: number; updated: number; skipped: number; errors: number },
+  ) {
+    const records = await this.prisma.syncRecord.findMany({
+      where: {
+        syncJobId: jobId,
+        entidadTipo: 'alerta_sanitaria',
+        accion: { in: [SyncRecordAction.INSERT, SyncRecordAction.UPDATE] },
+      },
+    });
+
+    const items: AlertaDigestItem[] = [];
+    for (const rec of records) {
+      const alerta = await this.prisma.alertaSanitaria.findFirst({
+        where: { numeroAlerta: rec.claveNatural },
+      });
+      if (!alerta) continue;
+      items.push({
+        numeroAlerta: alerta.numeroAlerta,
+        titulo: alerta.titulo,
+        fechaAlerta: alerta.fechaAlerta,
+        accion: rec.accion === SyncRecordAction.INSERT ? 'INSERT' : 'UPDATE',
+        documentoUrl: alerta.documentoUrl,
+      });
+    }
+
+    items.sort((a, b) => b.fechaAlerta.getTime() - a.fechaAlerta.getTime());
+
+    const summary =
+      `Sync completada: ${result.read} leídas, ${result.inserted} nuevas, ` +
+      `${result.updated} actualizadas, ${result.skipped} omitidas, ${result.errors} errores.`;
+
+    await this.mail.sendAlertasDigest(items, summary);
   }
 }

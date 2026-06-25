@@ -40,6 +40,7 @@ export const PERMISSIONS = [
   { codigo: 'ocr:use', recurso: 'ocr', accion: 'use', descripcion: 'Usar OCR' },
   { codigo: 'ia:use', recurso: 'ia', accion: 'use', descripcion: 'Usar identificación IA' },
   { codigo: 'antifalsificacion:view', recurso: 'antifalsificacion', accion: 'view', descripcion: 'Ver alertas antifalsificación' },
+  { codigo: 'alertas:view', recurso: 'alertas', accion: 'view', descripcion: 'Consultar alertas sanitarias INVIMA' },
   { codigo: 'favoritos:manage', recurso: 'favoritos', accion: 'manage', descripcion: 'Gestionar favoritos' },
   { codigo: 'historial:own', recurso: 'historial', accion: 'own', descripcion: 'Ver historial propio' },
   { codigo: 'sync:execute', recurso: 'sync', accion: 'execute', descripcion: 'Ejecutar sincronización manual' },
@@ -55,19 +56,19 @@ export const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
   ADMINISTRADOR: PERMISSIONS.map((p) => p.codigo),
   SUPERVISOR: [
     'medicamentos:read', 'medicamentos:advanced', 'dispositivos:read',
-    'ocr:use', 'ia:use', 'antifalsificacion:view', 'favoritos:manage',
+    'ocr:use', 'ia:use', 'antifalsificacion:view', 'alertas:view', 'favoritos:manage',
     'historial:own', 'sync:execute', 'sync:view', 'audit:view', 'dashboard:view',
   ],
   FARMACEUTICO: [
     'medicamentos:read', 'medicamentos:advanced', 'dispositivos:read',
-    'ocr:use', 'ia:use', 'antifalsificacion:view', 'favoritos:manage', 'historial:own',
+    'ocr:use', 'ia:use', 'antifalsificacion:view', 'alertas:view', 'favoritos:manage', 'historial:own',
   ],
   REGENTE: [
     'medicamentos:read', 'medicamentos:advanced', 'dispositivos:read',
-    'ocr:use', 'ia:use', 'antifalsificacion:view', 'favoritos:manage', 'historial:own',
+    'ocr:use', 'ia:use', 'antifalsificacion:view', 'alertas:view', 'favoritos:manage', 'historial:own',
   ],
   CONSULTA: [
-    'medicamentos:read', 'dispositivos:read', 'favoritos:manage', 'historial:own',
+    'medicamentos:read', 'dispositivos:read', 'alertas:view', 'favoritos:manage', 'historial:own',
   ],
   INVITADO: ['medicamentos:read', 'dispositivos:read'],
 };

@@ -5,9 +5,11 @@ import { SYNC_QUEUE, SyncProcessor } from './sync.processor';
 import { SyncScheduler } from './sync.scheduler';
 import { SyncController } from './sync.controller';
 import { SyncService } from './sync.service';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
+    NotificationsModule,
     BullModule.registerQueueAsync({
       name: SYNC_QUEUE,
       inject: [ConfigService],

@@ -142,6 +142,13 @@ export async function fetchFuentes() {
   return data.data ?? data;
 }
 
+export async function fetchAlertasSanitarias(q?: string, page = 1, limit = 20) {
+  const { data } = await api.get('/alertas-sanitarias/search', {
+    params: { q: q || undefined, page, limit },
+  });
+  return data.data ?? data;
+}
+
 export async function fetchRoles() {
   const { data } = await api.get('/admin/roles');
   return data.data ?? data;

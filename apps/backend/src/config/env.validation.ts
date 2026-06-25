@@ -24,16 +24,24 @@ export class EnvironmentVariables {
 
   @IsString()
   @IsOptional()
-  REDIS_URL?: string = 'redis://localhost:6380';
+  REDIS_URL?: string = 'redis://localhost:6391';
 
   @IsString()
   @IsOptional()
   INVIMA_APP_TOKEN?: string;
 
+  @IsString()
+  @IsOptional()
+  PHARMACOL_EMAIL?: string;
+
+  @IsString()
+  @IsOptional()
+  SEED_ADMIN_EMAIL?: string;
+
   @IsInt()
   @Min(1)
   @IsOptional()
-  API_PORT?: number = 3000;
+  API_PORT?: number = 3905;
 
   @IsString()
   @IsOptional()
@@ -42,6 +50,34 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   CORS_ORIGINS?: string = '*';
+
+  @IsString()
+  @IsOptional()
+  SMTP_HOST?: string;
+
+  @IsString()
+  @IsOptional()
+  SMTP_PORT?: string;
+
+  @IsString()
+  @IsOptional()
+  SMTP_USER?: string;
+
+  @IsString()
+  @IsOptional()
+  SMTP_PASS?: string;
+
+  @IsString()
+  @IsOptional()
+  SMTP_FROM?: string;
+
+  @IsString()
+  @IsOptional()
+  SMTP_SECURE?: string;
+
+  @IsString()
+  @IsOptional()
+  ALERTAS_DIGEST_EMAIL?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>): EnvironmentVariables {

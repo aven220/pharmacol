@@ -11,7 +11,7 @@ if [ -f .env ]; then
   set +a
 fi
 
-export DATABASE_URL="${DATABASE_URL:-postgresql://pharmacol:pharmacol_dev@localhost:5433/pharmacol?schema=public}"
+export DATABASE_URL="${DATABASE_URL:-postgresql://pharmacol:pharmacol_dev@localhost:5543/pharmacol?schema=public}"
 
 echo "==> Levantando PostgreSQL y Redis..."
 docker compose up -d postgres redis

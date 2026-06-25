@@ -2,6 +2,17 @@
 # Encuentra dónde corre nginx (host o Docker) en el servidor A-AS
 set -euo pipefail
 
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+if [[ -f .env ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source .env
+  set +a
+fi
+HTTP_PORT="${PHARMACOL_HTTP_PORT:-3906}"
+
 echo "=== Buscar nginx / puerto 443 ==="
 echo ""
 
@@ -22,18 +33,18 @@ echo "→ Contenedores con 'nginx' en el nombre o imagen:"
 docker ps -a --format 'table {{.Names}}\t{{.Image}}\t{{.Ports}}' 2>/dev/null | grep -i nginx || echo "  (ninguno con nombre nginx)"
 
 echo ""
-echo "→ Probar gateway Docker → host (PharmaCol en :8080):"
-if curl -sf -m 3 http://127.0.0.1:8080/pharmacol/v1/health >/dev/null 2>&1; then
-  echo "  ✓ http://127.0.0.1:8080/pharmacol/v1/health OK (desde el host)"
+echo "→ Probar gateway Docker → host (PharmaCol en :${HTTP_PORT}):"
+if curl -sf -m 3 "http://127.0.0.1:${HTTP_PORT}/pharmacol/v1/health" >/dev/null 2>&1; then
+  echo "  ✓ http://127.0.0.1:${HTTP_PORT}/pharmacol/v1/health OK (desde el host)"
 else
-  echo "  ✗ PharmaCol no responde en 127.0.0.1:8080 — levanta: docker compose -p pharmacol -f docker-compose.prod.yml up -d web backend"
+  echo "  ✗ PharmaCol no responde en 127.0.0.1:${HTTP_PORT} — levanta: docker compose -p pharmacol -f docker-compose.prod.yml up -d web backend"
 fi
 
 GW="${DOCKER_GATEWAY:-172.17.0.1}"
-if curl -sf -m 3 "http://${GW}:8080/pharmacol/v1/health" >/dev/null 2>&1; then
-  echo "  ✓ http://${GW}:8080/pharmacol/v1/health OK (como lo ve un contenedor Docker)"
+if curl -sf -m 3 "http://${GW}:${HTTP_PORT}/pharmacol/v1/health" >/dev/null 2>&1; then
+  echo "  ✓ http://${GW}:${HTTP_PORT}/pharmacol/v1/health OK (como lo ve un contenedor Docker)"
 else
-  echo "  ⚠ http://${GW}:8080 no responde — desde contenedor usar IP del host o extra_hosts"
+  echo "  ⚠ http://${GW}:${HTTP_PORT} no responde — desde contenedor usar IP del host o extra_hosts"
 fi
 
 echo ""

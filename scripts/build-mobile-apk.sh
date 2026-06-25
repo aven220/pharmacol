@@ -10,9 +10,20 @@ echo "==> PharmaCol — build APK (perfil: ${PROFILE})"
 echo "    API: https://20.5.19.8/pharmacol/v1"
 echo ""
 
+CERT="$MOBILE/certs/server.pem"
+if [[ ! -f "$CERT" ]]; then
+  echo "→ Copiando certificado SSL del servidor..."
+  bash "$ROOT/scripts/prepare-mobile-cert.sh" || true
+fi
+if [[ ! -f "$CERT" ]]; then
+  echo "ERROR: Falta $CERT — Android no confía en HTTPS autofirmado sin este archivo."
+  echo "  scp aven220@20.5.19.8:~/pharma-delivery/infra/ssl/fullchain.pem $CERT"
+  exit 1
+fi
+
 cd "$ROOT"
-echo "→ Instalando dependencias..."
-pnpm install --filter @pharmacol/mobile-expo...
+echo "→ Dependencias..."
+pnpm install
 
 if ! git diff --quiet HEAD -- apps/mobile-expo pnpm-lock.yaml 2>/dev/null; then
   echo ""
@@ -40,9 +51,9 @@ echo "   Primera vez: pnpm exec eas login && pnpm exec eas init"
 echo ""
 
 if [[ "${BUILD_LOCAL:-}" == "1" ]]; then
-  "${EAS[@]}" build --platform android --profile "$PROFILE" --local --clear-cache
+  "${EAS[@]}" build --platform android --profile "$PROFILE" --local --clear-cache --non-interactive
 else
-  "${EAS[@]}" build --platform android --profile "$PROFILE" --clear-cache
+  "${EAS[@]}" build --platform android --profile "$PROFILE" --clear-cache --non-interactive
 fi
 
 echo ""

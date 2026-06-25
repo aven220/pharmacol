@@ -13,7 +13,6 @@
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://20.5.19.8/pharmacol/v1",
-        "NODE_ENV": "production",
         "NODE_OPTIONS": "--max-old-space-size=4096"
       }
     },
@@ -25,7 +24,6 @@
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://20.5.19.8/pharmacol/v1",
-        "NODE_ENV": "production",
         "NODE_OPTIONS": "--max-old-space-size=4096"
       }
     }

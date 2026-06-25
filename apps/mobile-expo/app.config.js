@@ -8,9 +8,10 @@ const apiUrl = (
 module.exports = {
   expo: {
     ...appJson.expo,
+    plugins: [...(appJson.expo.plugins || []), './plugins/with-server-ssl-trust.js'],
     android: {
       ...appJson.expo.android,
-      versionCode: 1,
+      versionCode: 3,
     },
     extra: {
       ...appJson.expo.extra,

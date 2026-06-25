@@ -58,11 +58,11 @@ $COMPOSE logs backend --tail 30 2>/dev/null || docker logs pharmacol-backend --t
 # 4. Health
 echo ""
 echo "→ Health check:"
-if curl -sf -m 5 "http://localhost:${API_PORT:-3005}/v1/health" 2>/dev/null; then
+if curl -sf -m 5 "http://localhost:${API_PORT:-3905}/v1/health" 2>/dev/null; then
   echo ""
   echo -e "${GREEN}✓ API responde${NC}"
 else
-  echo -e "${RED}✗ API no responde en :${API_PORT:-3005}${NC}"
+  echo -e "${RED}✗ API no responde en :${API_PORT:-3905}${NC}"
 fi
 
 echo ""

@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import {
   getErrorMessage,
   searchMedicamentos,
   suggestMedicamentos,
 } from '../api/client';
+import { MedicamentoCard } from '../components/MedicamentoCard';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { mapMedicamentoSummary, type MedicamentoSummary } from '../types/medicamentos';
 
@@ -23,31 +23,6 @@ const TIPO_PLACEHOLDERS: Record<string, string> = {
   cum: 'Ej: 20031822-1',
   principio_activo: 'Ej: Paracetamol, Ibuprofeno...',
 };
-
-function MedicamentoCard({ item, highlight }: { item: MedicamentoSummary; highlight?: boolean }) {
-  const score = item.score ? `${Math.round(item.score * 100)}%` : null;
-  return (
-    <Link
-      to={`/consulta/${item.id}`}
-      className={`med-card${highlight ? ' med-card-highlight' : ''}`}
-    >
-      <strong className="med-card-title">{item.nombreComercial}</strong>
-      {item.concentracion ? <div className="med-card-meta">{item.concentracion}</div> : null}
-      {item.formaFarmaceutica ? <div className="med-card-meta">{item.formaFarmaceutica}</div> : null}
-      {item.numeroRegistro ? <div className="med-card-meta">{item.numeroRegistro}</div> : null}
-      {item.laboratorio ? <div className="med-card-meta">{item.laboratorio}</div> : null}
-      {item.numPresentaciones ? (
-        <div className="med-card-pres">
-          {item.numPresentaciones} presentación{item.numPresentaciones === 1 ? '' : 'es'}
-        </div>
-      ) : null}
-      <div className="med-card-footer">
-        <span className="med-badge">{item.estadoRegistro ?? '—'}</span>
-        {score ? <span className="med-score">{score} coincidencia</span> : null}
-      </div>
-    </Link>
-  );
-}
 
 export default function ConsultaPage() {
   const [input, setInput] = useState('');
@@ -122,10 +97,11 @@ export default function ConsultaPage() {
   const showEmpty = isLiveSearch && !loading && !error && !showResults;
 
   return (
-    <div>
+    <div className="consulta-page">
       <h2>Consulta farmacéutica</h2>
-      <p style={{ color: '#666', marginBottom: 16 }}>
-        Busque medicamentos por nombre, registro INVIMA, CUM o principio activo.
+      <p className="consulta-intro">
+        Búsqueda en catálogo INVIMA vigente. Los resultados muestran registro sanitario, CUM,
+        principio activo, concentración y laboratorio antes de abrir el detalle.
       </p>
 
       <div className="search-input-wrap">
@@ -160,25 +136,34 @@ export default function ConsultaPage() {
 
       {showSuggestions ? (
         <div className="search-section">
-          <h3>Sugerencias</h3>
-          {suggestions.map((item) => (
-            <MedicamentoCard key={`s-${item.id}`} item={item} highlight />
-          ))}
+          <h3>Sugerencias ({suggestions.length})</h3>
+          <div className="med-results-grid">
+            {suggestions.map((item) => (
+              <MedicamentoCard key={`s-${item.id}`} item={item} highlight />
+            ))}
+          </div>
         </div>
       ) : null}
 
       {showResults ? (
         <div className="search-section">
-          <h3>Resultados ({total})</h3>
-          {results.map((item) => (
-            <MedicamentoCard key={item.id} item={item} />
-          ))}
+          <h3>
+            Resultados ({total}
+            {total > results.length ? ` — mostrando ${results.length}` : ''})
+          </h3>
+          <div className="med-results-grid">
+            {results.map((item) => (
+              <MedicamentoCard key={item.id} item={item} />
+            ))}
+          </div>
           {relacionados.length > 0 ? (
             <>
               <h3 style={{ marginTop: 24 }}>Medicamentos relacionados</h3>
-              {relacionados.map((item) => (
-                <MedicamentoCard key={`r-${item.id}`} item={item} />
-              ))}
+              <div className="med-results-grid">
+                {relacionados.map((item) => (
+                  <MedicamentoCard key={`r-${item.id}`} item={item} />
+                ))}
+              </div>
             </>
           ) : null}
         </div>
@@ -189,8 +174,14 @@ export default function ConsultaPage() {
       ) : null}
 
       {!isLiveSearch ? (
-        <div className="empty-msg" style={{ marginTop: 32 }}>
+        <div className="empty-msg consulta-empty">
           <p>Empiece a escribir para buscar en el catálogo INVIMA.</p>
+          <ul>
+            <li><strong>Nombre</strong> — producto comercial o genérico</li>
+            <li><strong>INVIMA</strong> — número de registro sanitario</li>
+            <li><strong>CUM</strong> — código único de medicamento</li>
+            <li><strong>Principio activo</strong> — DCI / molécula</li>
+          </ul>
         </div>
       ) : null}
     </div>
