@@ -16,9 +16,10 @@ type SyncJob = {
   registrosInsertados?: number;
   registrosActualizados?: number;
   registrosOmitidos?: number;
+  registrosError?: number;
   createdAt?: string;
   fuente?: { codigo?: string };
-  metadata?: { canceladoPorAdmin?: boolean; errorMensaje?: string };
+  metadata?: { canceladoPorAdmin?: boolean; errorMensaje?: string; errores?: number; nota?: string; sinCambiosNuevos?: boolean };
 };
 
 export default function SyncPage() {
@@ -116,6 +117,9 @@ export default function SyncPage() {
     if (job.status === 'COMPLETADA' && (job.metadata as { sinCambiosNuevos?: boolean })?.sinCambiosNuevos) {
       return 'COMPLETADA (verificada, sin cambios)';
     }
+    if (job.status === 'COMPLETADA' && job.metadata?.errores) {
+      return `COMPLETADA (${job.metadata.errores} error(es) menor(es))`;
+    }
     if (job.status === 'FALLIDA' && job.metadata?.errorMensaje) {
       return `FALLIDA — ${job.metadata.errorMensaje}`;
     }
@@ -149,7 +153,7 @@ export default function SyncPage() {
         <p style={{ fontSize: 13, color: '#666' }}>
           Para <strong>medicamentos</strong> usa <code>INVIMA_CUM_VIGENTES</code>.
           <strong> Token INVIMA es opcional</strong> — si la sync no arranca, use &quot;Liberar colgadas&quot;.
-          Omitidos altos en re-sync es normal. Una fuente a la vez (~40 min).
+          Omitidos altos en re-sync es normal. Dataset CUM vigentes: ~157.000 filas (no confundir con medicamentos únicos).
         </p>
         <button
           type="button"
@@ -201,6 +205,7 @@ export default function SyncPage() {
               <th>Insertados</th>
               <th>Actualizados</th>
               <th>Omitidos</th>
+              <th>Errores</th>
               <th>Fecha</th>
               <th>Acciones</th>
             </tr>
@@ -221,6 +226,7 @@ export default function SyncPage() {
                   <td>{j.registrosInsertados ?? 0}</td>
                   <td>{j.registrosActualizados ?? 0}</td>
                   <td>{j.registrosOmitidos ?? 0}</td>
+                  <td>{j.registrosError ?? 0}</td>
                   <td>{String(j.createdAt ?? '').slice(0, 19)}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>
                     {canCancel ? (

@@ -147,9 +147,11 @@ El seed **no** reemplaza al sync. Para producción usa solo datos del sync.
 
 | Síntoma | Solución |
 |---------|----------|
-| Sync muy lento | Normal la primera vez (~40k+ registros CUM) |
+| Sync muy lento | Normal la primera vez (~157.000 filas CUM vigentes en datos.gov.co) |
 | Error 429 API / segunda sync FALLIDA | Agrega `INVIMA_APP_TOKEN` en `.env`, espera 15–30 min entre intentos y reinicia backend |
-| Solo ~7k medicamentos | Revisa `codigos_cum`: si también son ~7k, la primera sync se cortó — reintenta tras configurar token |
+| Solo ~7k medicamentos | Normal: hay ~157k filas CUM pero ~7k–15k medicamentos únicos (un producto tiene varios CUM) |
+| Siempre 157146 leídos, 0 insertados | Normal en re-sync: la base ya está cargada; mire omitidos altos = OK |
+| PARCIAL con pocos errores | Con el fix reciente se marca COMPLETADA si hay &lt;100 errores (~22 es aceptable) |
 | Segunda sync FALLIDA con pocos leídos | Límite de datos.gov.co o red del servidor; ver logs del backend |
 | App sin resultados | Confirma sync terminó: admin → Sincronización → Historial |
 | Redis error | `docker compose up -d` |

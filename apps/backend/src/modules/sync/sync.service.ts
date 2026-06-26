@@ -299,14 +299,26 @@ export class SyncService implements OnModuleInit {
       }
 
       if (this.syncHasChanges(result)) {
+        const syncStatus = this.resolveSyncStatus(result);
         const finalized = await this.finalizeSyncJob(job.id, {
-          status: result.errors > 0 ? SyncJobStatus.PARCIAL : SyncJobStatus.COMPLETADA,
+          status: syncStatus,
           finAt: new Date(),
           registrosLeidos: result.read,
           registrosInsertados: result.inserted,
           registrosActualizados: result.updated,
           registrosOmitidos: result.skipped,
           registrosError: result.errors,
+          ...(result.errors > 0
+            ? {
+                metadata: {
+                  errores: result.errors,
+                  nota:
+                    syncStatus === SyncJobStatus.COMPLETADA
+                      ? `Completada con ${result.errors} fila(s) con error menor — la base quedó actualizada.`
+                      : `${result.errors} filas con error — revise logs del backend.`,
+                },
+              }
+            : {}),
         });
 
         if (finalized) {
@@ -661,10 +673,11 @@ export class SyncService implements OnModuleInit {
     if (codigoCompleto) {
       const existingCum = await this.prisma.codigoCum.findUnique({
         where: { codigoCompleto },
-        select: { descripcionProducto: true },
+        select: { id: true },
       });
-      cumNeedsBackfill = !existingCum?.descripcionProducto?.trim();
-      if (!cumNeedsBackfill) {
+      if (!existingCum) {
+        cumNeedsBackfill = true;
+      } else {
         const pres = await this.prisma.presentacion.findFirst({
           where: { codigoCum: codigoCompleto },
           select: { id: true },
@@ -790,7 +803,7 @@ export class SyncService implements OnModuleInit {
       const cumCode = `${record.expedientecum}-${record.consecutivocum}`;
       const descComercial = record.descripcioncomercial?.trim() ?? null;
       const productoDescRaw = descComercial ?? record.producto?.trim() ?? null;
-      const productoDesc = productoDescRaw ? productoDescRaw.slice(0, 500) : null;
+      const productoDesc = (productoDescRaw || nombreComercial || numeroRegistro).slice(0, 500);
       const med = await this.prisma.medicamento.findUniqueOrThrow({
         where: { registroInvimaId: registro.id },
       });
@@ -1327,6 +1340,14 @@ export class SyncService implements OnModuleInit {
 
   private syncHasChanges(result: SyncProgress): boolean {
     return result.inserted > 0 || result.updated > 0 || result.errors > 0;
+  }
+
+  /** PARCIAL solo si hay muchos errores; unos pocos se marcan COMPLETADA con advertencia. */
+  private resolveSyncStatus(result: SyncProgress): SyncJobStatus {
+    if (result.errors === 0) return SyncJobStatus.COMPLETADA;
+    const rate = result.read > 0 ? result.errors / result.read : 1;
+    if (result.errors <= 100 || rate < 0.001) return SyncJobStatus.COMPLETADA;
+    return SyncJobStatus.PARCIAL;
   }
 
   private async sendAlertasDigest(
