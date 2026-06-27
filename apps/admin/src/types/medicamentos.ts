@@ -25,6 +25,10 @@ export type PresentacionItem = {
   formaFarmaceutica?: string;
   cantidad?: string;
   unidad?: string;
+  contenidoEnvase?: string;
+  unidadesPorBlister?: string;
+  blisterCantidad?: number;
+  embalajeResumen?: string;
   estadoRegistro?: string;
   estadoCum?: string;
   numeroRegistro?: string;
@@ -74,6 +78,10 @@ function mapPresentacion(raw: Record<string, unknown>): PresentacionItem {
     formaFarmaceutica: raw.formaFarmaceutica as string | undefined,
     cantidad: raw.cantidad != null ? String(raw.cantidad) : undefined,
     unidad: raw.unidad as string | undefined,
+    contenidoEnvase: raw.contenidoEnvase as string | undefined,
+    unidadesPorBlister: raw.unidadesPorBlister as string | undefined,
+    blisterCantidad: raw.blisterCantidad as number | undefined,
+    embalajeResumen: raw.embalajeResumen as string | undefined,
     estadoRegistro: raw.estadoRegistro as string | undefined,
     estadoCum: raw.estadoCum as string | undefined,
     numeroRegistro: raw.numeroRegistro as string | undefined,

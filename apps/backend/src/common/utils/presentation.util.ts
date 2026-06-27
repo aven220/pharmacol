@@ -47,6 +47,90 @@ export interface PresentacionParseResult {
   embalaje?: string;
   unidades?: string;
   resumen?: string;
+  /** Desglose cuando INVIMA indica blister (ej. caja 30, blister de 10). */
+  blisterCantidad?: number;
+  unidadesPorBlister?: string;
+  contenidoEnvase?: string;
+  embalajeResumen?: string;
+}
+
+/** Desglose de envase comercial desde descripcioncomercial INVIMA. */
+export function parseEmbalajeDetallado(
+  descripcionComercial?: string | null,
+  cantidadCum?: string | null,
+  formaFarmaceutica?: string | null,
+): PresentacionParseResult {
+  const desc = descripcionComercial?.replace(/\s+/g, ' ').trim() ?? '';
+  const qty = cantidadCum?.trim().replace(',', '.') ?? '';
+  const embalaje = buildPresentacionComercial(desc, qty, formaFarmaceutica);
+
+  if (!desc && !qty) {
+    return { embalaje, resumen: embalaje };
+  }
+
+  const unitFromForma = formaToUnidadPlural(formaFarmaceutica);
+  const hasBlister = /\bBLISTER\b/i.test(desc);
+
+  const cadaBlister = desc.match(
+    /CADA\s+BLISTER\s*(?:POR|X|×|DE)\s*(\d+(?:[.,]\d+)?)\s*(TABLETAS?(?:\s+RECUBIERTAS?)?|CAPSULAS?(?:\s+BLANDAS?|\s*DURAS?)?|COMPRIMIDOS?(?:\s+EFERVESCENTES?)?|GRAGEAS?|SOBRES?|AMPOLLAS?)/i,
+  );
+  const porCadaBlister = desc.match(
+    /POR\s*(\d+(?:[.,]\d+)?)\s*(TABLETAS?(?:\s+RECUBIERTAS?)?|CAPSULAS?(?:\s+BLANDAS?|\s*DURAS?)?|COMPRIMIDOS?(?:\s+EFERVESCENTES?)?|GRAGEAS?|SOBRES?|AMPOLLAS?)\s*CADA\s+BLISTER/i,
+  );
+  const cajaTotal = desc.match(
+    /(?:CAJA|ENVASE|ESTUCHE|CARTON)\s*(?:POR|X|×)\s*(\d+(?:[.,]\d+)?)\s*(TABLETAS?(?:\s+RECUBIERTAS?)?|CAPSULAS?(?:\s+BLANDAS?|\s*DURAS?)?|COMPRIMIDOS?(?:\s+EFERVESCENTES?)?|GRAGEAS?|SOBRES?|AMPOLLAS?)/i,
+  );
+
+  const blisterMatch = cadaBlister ?? porCadaBlister;
+  let unidadesPorBlister: string | undefined;
+  let blisterCantidad: number | undefined;
+  let contenidoEnvase: string | undefined;
+
+  if (blisterMatch) {
+    const n = blisterMatch[1].replace(',', '.');
+    const u = blisterMatch[2].toLowerCase().replace(/\s+/g, ' ').trim();
+    unidadesPorBlister = `${n} ${u}`;
+  }
+
+  const totalNum = cajaTotal?.[1]?.replace(',', '.') ?? qty;
+  const totalUnit = cajaTotal?.[2]?.toLowerCase() ?? unitFromForma;
+  if (totalNum) {
+    contenidoEnvase = `${totalNum} ${totalUnit}`;
+  }
+
+  if (hasBlister && unidadesPorBlister && totalNum) {
+    const total = parseFloat(totalNum);
+    const perBlister = parseFloat(unidadesPorBlister);
+    if (!Number.isNaN(total) && !Number.isNaN(perBlister) && perBlister > 0 && total >= perBlister) {
+      const nBlister = total / perBlister;
+      if (Number.isInteger(nBlister) && nBlister >= 1 && nBlister <= 500) {
+        blisterCantidad = nBlister;
+      }
+    }
+  } else if (hasBlister && totalNum && !unidadesPorBlister) {
+    unidadesPorBlister = `${totalNum} ${totalUnit}`;
+    blisterCantidad = 1;
+  }
+
+  let embalajeResumen = embalaje;
+  if (hasBlister && contenidoEnvase) {
+    const tipo = extractContainerType(desc);
+    if (blisterCantidad && blisterCantidad > 1 && unidadesPorBlister) {
+      embalajeResumen = `${tipo} por ${contenidoEnvase} · ${blisterCantidad} blisters × ${unidadesPorBlister} c/u`;
+    } else if (unidadesPorBlister) {
+      embalajeResumen = `${tipo} por ${contenidoEnvase} · blister de ${unidadesPorBlister}`;
+    }
+  }
+
+  return {
+    embalaje: embalajeResumen !== 'Presentación comercial no disponible' ? embalajeResumen : embalaje,
+    unidades: contenidoEnvase,
+    resumen: embalajeResumen,
+    blisterCantidad,
+    unidadesPorBlister,
+    contenidoEnvase,
+    embalajeResumen,
+  };
 }
 
 function extractContainerType(descripcion: string): string {
@@ -179,13 +263,7 @@ export function parseDescripcionComercial(
   cantidadCum?: string | null,
   formaFarmaceutica?: string | null,
 ): PresentacionParseResult {
-  const embalaje = buildPresentacionComercial(text, cantidadCum, formaFarmaceutica);
-  const qtyMatch = embalaje.match(/por\s+(\d+(?:[.,]\d+)?)\s+(.+)/i);
-  return {
-    embalaje,
-    unidades: qtyMatch ? `${qtyMatch[1]} ${qtyMatch[2]}` : undefined,
-    resumen: embalaje !== 'Presentación comercial no disponible' ? embalaje : text?.slice(0, 80),
-  };
+  return parseEmbalajeDetallado(text, cantidadCum, formaFarmaceutica);
 }
 
 function summarizeCommercialDesc(text: string): string {
@@ -346,6 +424,13 @@ export interface PresentacionDto {
   presentacionComercial?: string;
   cumConsec?: string;
   etiquetaPresentacion?: string;
+  /** Ej. "30 cápsulas" total en la caja */
+  contenidoEnvase?: string;
+  /** Ej. "10 cápsulas" por blister */
+  unidadesPorBlister?: string;
+  /** Número de blisters en el envase */
+  blisterCantidad?: number;
+  embalajeResumen?: string;
   estadoRegistro?: string;
   estadoCum?: string;
   numeroRegistro?: string;
@@ -414,7 +499,7 @@ export function buildPresentacionesItems(med: {
       cantidadCum,
       med.formaFarmaceutica,
     );
-    const embalajeComercial = buildPresentacionComercial(
+    const embalajeComercial = parsed.embalaje ?? buildPresentacionComercial(
       descripcionProducto,
       cantidadCum,
       med.formaFarmaceutica,
@@ -435,7 +520,11 @@ export function buildPresentacionesItems(med: {
       estadoCum: cum.estadoCum ?? undefined,
       descripcionProducto,
       embalaje: embalajeComercial,
-      unidades: parsed.unidades,
+      unidades: parsed.unidades ?? parsed.contenidoEnvase,
+      contenidoEnvase: parsed.contenidoEnvase,
+      unidadesPorBlister: parsed.unidadesPorBlister,
+      blisterCantidad: parsed.blisterCantidad,
+      embalajeResumen: parsed.embalajeResumen,
       cumConsec,
       etiquetaPresentacion,
       concentracion: med.concentracion ?? undefined,
@@ -455,7 +544,7 @@ export function buildPresentacionesItems(med: {
     const descripcion = pres.descripcion?.trim() || undefined;
     const cantidadCum = pres.cantidad != null ? String(pres.cantidad) : undefined;
     const parsed = parseDescripcionComercial(descripcion, cantidadCum, med.formaFarmaceutica);
-    const embalajeComercial = buildPresentacionComercial(
+    const embalajeComercial = parsed.embalaje ?? buildPresentacionComercial(
       descripcion,
       cantidadCum,
       med.formaFarmaceutica,
@@ -470,7 +559,11 @@ export function buildPresentacionesItems(med: {
       cum: pres.codigoCum ?? undefined,
       descripcionProducto: descripcion,
       embalaje: embalajeComercial,
-      unidades: parsed.unidades,
+      unidades: parsed.unidades ?? parsed.contenidoEnvase,
+      contenidoEnvase: parsed.contenidoEnvase,
+      unidadesPorBlister: parsed.unidadesPorBlister,
+      blisterCantidad: parsed.blisterCantidad,
+      embalajeResumen: parsed.embalajeResumen,
       etiquetaPresentacion,
       concentracion: med.concentracion ?? undefined,
       formaFarmaceutica: med.formaFarmaceutica ?? undefined,

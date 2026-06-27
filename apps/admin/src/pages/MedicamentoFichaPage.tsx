@@ -84,10 +84,25 @@ export default function MedicamentoFichaPage() {
         <dl className="info-list">
           <InfoRow
             label="Presentación comercial"
-            value={presFromApi?.embalaje ?? presFromApi?.presentacionComercial ?? presFromApi?.etiquetaPresentacion}
+            value={
+              presFromApi?.embalajeResumen ??
+              presFromApi?.embalaje ??
+              presFromApi?.presentacionComercial ??
+              presFromApi?.etiquetaPresentacion
+            }
             highlight
           />
-          <InfoRow label="Descripción INVIMA" value={presFromApi?.descripcionProducto} />
+          <InfoRow label="Contenido del envase" value={presFromApi?.contenidoEnvase} highlight />
+          <InfoRow label="Unidades por blister" value={presFromApi?.unidadesPorBlister} highlight />
+          <InfoRow
+            label="Número de blisters"
+            value={
+              presFromApi?.blisterCantidad != null && presFromApi.blisterCantidad > 0
+                ? String(presFromApi.blisterCantidad)
+                : undefined
+            }
+          />
+          <InfoRow label="Descripción INVIMA (texto original)" value={presFromApi?.descripcionProducto} />
           <InfoRow label="Concentración" value={presFromApi?.concentracion ?? detail.concentracion} />
           <InfoRow label="Forma farmacéutica" value={presFromApi?.formaFarmaceutica ?? detail.formaFarmaceutica} />
           <InfoRow
