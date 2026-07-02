@@ -236,6 +236,33 @@ label { display: block; font-size: 14px; margin-bottom: 4px; }
 .info-row-highlight dd { color: #006874; font-weight: 600; }
 .bullet-list { margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.6; }
 .body-text { font-size: 14px; line-height: 1.6; color: #333; margin: 0; }
+.alerta-list { display: flex; flex-direction: column; gap: 12px; }
+.alerta-card {
+  border: 1px solid #e8ecef;
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: #fafbfc;
+}
+.alerta-card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.alerta-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.alerta-badge-agotado { background: #fff3e0; color: #e65100; }
+.alerta-badge-retiro { background: #ffebee; color: #c62828; }
+.alerta-badge-carta { background: #e3f2fd; color: #1565c0; }
+.alerta-badge-informe { background: #f3e5f5; color: #6a1b9a; }
+.alerta-badge-otro { background: #eceff1; color: #455a64; }
+.alerta-fecha { font-size: 12px; color: #666; }
+.alerta-titulo { display: block; font-size: 15px; margin-bottom: 4px; color: #111; }
+.alerta-numero { font-size: 12px; color: #666; margin: 0 0 8px; }
+.alerta-desc { font-size: 13px; line-height: 1.5; color: #444; margin: 0 0 10px; }
+.alerta-pdf { font-size: 13px; font-weight: 600; }
 @media (max-width: 640px) {
   .info-row { grid-template-columns: 1fr; gap: 2px; }
 }

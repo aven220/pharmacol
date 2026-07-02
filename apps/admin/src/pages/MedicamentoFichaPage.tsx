@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { fetchMedicamento, fetchPresentaciones, getErrorMessage } from '../api/client';
-import { mapMedicamentoDetail, type MedicamentoDetail, type PresentacionItem } from '../types/medicamentos';
+import { fetchMedicamento, fetchMedicamentoAlertas, fetchPresentaciones, getErrorMessage } from '../api/client';
+import { mapMedicamentoDetail, type MedicamentoAlertaItem, type MedicamentoDetail, type PresentacionItem } from '../types/medicamentos';
 
 function InfoRow({ label, value, highlight }: { label: string; value?: string | null; highlight?: boolean }) {
   if (!value?.trim()) return null;
@@ -29,6 +29,21 @@ function resolvePresentacion(
   return undefined;
 }
 
+function alertaBadgeClass(tipo?: string): string {
+  switch (tipo) {
+    case 'AGOTADO':
+      return 'alerta-badge alerta-badge-agotado';
+    case 'RETIRO':
+      return 'alerta-badge alerta-badge-retiro';
+    case 'CARTA':
+      return 'alerta-badge alerta-badge-carta';
+    case 'INFORME_SEGURIDAD':
+      return 'alerta-badge alerta-badge-informe';
+    default:
+      return 'alerta-badge alerta-badge-otro';
+  }
+}
+
 export default function MedicamentoFichaPage() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
@@ -37,16 +52,18 @@ export default function MedicamentoFichaPage() {
 
   const [detail, setDetail] = useState<MedicamentoDetail | null>(null);
   const [presentaciones, setPresentaciones] = useState<PresentacionItem[]>([]);
+  const [alertas, setAlertas] = useState<MedicamentoAlertaItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!id) return;
     setLoading(true);
-    Promise.all([fetchMedicamento(id), fetchPresentaciones(id)])
-      .then(([raw, presData]) => {
+    Promise.all([fetchMedicamento(id), fetchPresentaciones(id), fetchMedicamentoAlertas(id)])
+      .then(([raw, presData, alertasData]) => {
         setDetail(mapMedicamentoDetail(raw));
         setPresentaciones(presData.presentaciones);
+        setAlertas(alertasData.items ?? []);
       })
       .catch((e) => setError(getErrorMessage(e)))
       .finally(() => setLoading(false));
@@ -150,6 +167,46 @@ export default function MedicamentoFichaPage() {
           <p className="body-text">{detail.contraindicaciones}</p>
         </section>
       ) : null}
+
+      <section className="ficha-section">
+        <h3>Alertas y comunicados INVIMA</h3>
+        <p className="med-meta" style={{ marginTop: 0 }}>
+          Cartas de agotados, alertas sanitarias, informes de seguridad y otros comunicados oficiales
+          relacionados con este medicamento.
+        </p>
+        {alertas.length === 0 ? (
+          <p className="body-text">
+            No se encontraron alertas vinculadas. Si el producto tiene novedades recientes, sincronice{' '}
+            <Link to="/alertas">Alertas INVIMA</Link>.
+          </p>
+        ) : (
+          <div className="alerta-list">
+            {alertas.map((alerta) => (
+              <article key={alerta.id} className="alerta-card">
+                <div className="alerta-card-head">
+                  <span className={alertaBadgeClass(alerta.tipoClasificado)}>
+                    {alerta.tipoClasificadoLabel ?? 'Comunicado INVIMA'}
+                  </span>
+                  <span className="alerta-fecha">{String(alerta.fechaAlerta).slice(0, 10)}</span>
+                </div>
+                <strong className="alerta-titulo">{alerta.titulo}</strong>
+                <p className="alerta-numero">Alerta No. {alerta.numeroAlerta}</p>
+                <p className="alerta-desc">{alerta.descripcion.slice(0, 400)}{alerta.descripcion.length > 400 ? '…' : ''}</p>
+                {alerta.documentoUrl ? (
+                  <a
+                    href={alerta.documentoUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="alerta-pdf"
+                  >
+                    Ver documento PDF INVIMA →
+                  </a>
+                ) : null}
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

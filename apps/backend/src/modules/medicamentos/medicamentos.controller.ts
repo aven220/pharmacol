@@ -5,6 +5,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { MedicamentosService } from './medicamentos.service';
+import { AlertasSanitariasService } from '../alertas-sanitarias/alertas-sanitarias.service';
 import { SearchMedicamentosDto } from './dto/search-medicamentos.dto';
 
 @ApiTags('Medicamentos')
@@ -12,7 +13,10 @@ import { SearchMedicamentosDto } from './dto/search-medicamentos.dto';
 @Controller('medicamentos')
 @UseGuards(PermissionsGuard)
 export class MedicamentosController {
-  constructor(private readonly service: MedicamentosService) {}
+  constructor(
+    private readonly service: MedicamentosService,
+    private readonly alertasService: AlertasSanitariasService,
+  ) {}
 
   @Get('offline-pack')
   @RequirePermissions('medicamentos:read')
@@ -54,6 +58,15 @@ export class MedicamentosController {
   @ApiOperation({ summary: 'Buscar por código de barras (puede devolver varias presentaciones)' })
   byBarcode(@Param('codigo') codigo: string) {
     return this.service.findByBarcode(codigo);
+  }
+
+  @Get(':id/alertas')
+  @RequirePermissions('medicamentos:read', 'alertas:view')
+  @ApiOperation({
+    summary: 'Alertas INVIMA relacionadas (agotados, cartas, alertas sanitarias)',
+  })
+  alertas(@Param('id') id: string, @Query('limit') limit?: number) {
+    return this.alertasService.findForMedicamento(id, limit ? Number(limit) : 30);
   }
 
   @Get(':id/presentaciones')

@@ -49,6 +49,25 @@ export type PresentacionesResponse = {
   total: number;
 };
 
+export type MedicamentoAlertaItem = {
+  id: string;
+  numeroAlerta: string;
+  fechaAlerta: string;
+  titulo: string;
+  descripcion: string;
+  tipoDocumento?: string;
+  tipoClasificado?: string;
+  tipoClasificadoLabel?: string;
+  documentoUrl?: string;
+  relevancia?: number;
+};
+
+export type MedicamentoAlertasResponse = {
+  medicamento: { id: string; nombreComercial: string; numeroRegistro?: string };
+  items: MedicamentoAlertaItem[];
+  total: number;
+};
+
 export type MedicamentoDetail = {
   id: string;
   nombreComercial: string;
