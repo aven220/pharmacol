@@ -284,29 +284,6 @@ export async function fetchMedicamento(id: string) {
   return (data.data ?? data) as Record<string, unknown>;
 }
 
-export type MedicamentoAlertaItem = {
-  id: string;
-  numeroAlerta: string;
-  fechaAlerta: string;
-  titulo: string;
-  descripcion: string;
-  tipoDocumento?: string;
-  documentoUrl?: string;
-  tipoClasificado?: string;
-  tipoClasificadoLabel?: string;
-  relevancia?: number;
-};
-
-export async function fetchMedicamentoAlertas(medicamentoId: string) {
-  const { data } = await api.get(`/medicamentos/${medicamentoId}/alertas`);
-  const payload = data.data ?? data;
-  return payload as {
-    medicamento: { id: string; nombreComercial: string; numeroRegistro?: string };
-    items: MedicamentoAlertaItem[];
-    total: number;
-  };
-}
-
 export function getErrorMessage(err: unknown): string {
   if (isAxiosError(err)) {
     const body = err.response?.data as { error?: string } | undefined;
