@@ -42,6 +42,13 @@ export class SyncController {
     return this.syncService.listJobs(query.page, query.limit);
   }
 
+  @Get(':id/errores')
+  @RequirePermissions('sync:view')
+  @ApiOperation({ summary: 'Errores de una sincronización' })
+  errores(@Param('id') id: string, @Query('limit') limit?: number) {
+    return this.syncService.listJobErrors(id, limit ? Number(limit) : 100);
+  }
+
   @Post('limpiar-colgadas')
   @RequirePermissions('sync:execute')
   @ApiOperation({ summary: 'Liberar syncs EN_PROCESO huérfanas que bloquean nuevas ejecuciones' })

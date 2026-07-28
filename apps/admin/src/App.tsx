@@ -10,6 +10,7 @@ import ConsultaPage from './pages/ConsultaPage';
 import MedicamentoPresentacionesPage from './pages/MedicamentoPresentacionesPage';
 import MedicamentoFichaPage from './pages/MedicamentoFichaPage';
 import AlertasSanitariasPage from './pages/AlertasSanitariasPage';
+import CumEstadoPage from './pages/CumEstadoPage';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { loading } = useAuth();
@@ -106,6 +107,14 @@ function AppRoutes() {
                   element={
                     <RequirePermission permission="medicamentos:read">
                       <MedicamentoFichaPage />
+                    </RequirePermission>
+                  }
+                />
+                <Route
+                  path="/cum-estado"
+                  element={
+                    <RequirePermission permission="medicamentos:read">
+                      <CumEstadoPage />
                     </RequirePermission>
                   }
                 />

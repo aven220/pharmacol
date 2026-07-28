@@ -159,6 +159,11 @@ export async function fetchSyncHistory(page = 1) {
   return data.data ?? data;
 }
 
+export async function fetchSyncErrors(jobId: string, limit = 100) {
+  const { data } = await api.get(`/admin/sync/${jobId}/errores`, { params: { limit } });
+  return data.data ?? data;
+}
+
 export async function resetStuckSyncJobs() {
   const { data } = await api.post('/admin/sync/limpiar-colgadas');
   return data.data ?? data;
@@ -282,6 +287,11 @@ export async function fetchMedicamentoAlertas(medicamentoId: string, limit = 30)
 export async function fetchMedicamento(id: string) {
   const { data } = await api.get(`/medicamentos/${id}`);
   return (data.data ?? data) as Record<string, unknown>;
+}
+
+export async function lookupCumBatch(payload: { codigos?: string[]; texto?: string }) {
+  const { data } = await api.post('/medicamentos/cum/estado-lote', payload);
+  return (data.data ?? data) as import('../types/medicamentos').CumBatchLookupResponse;
 }
 
 export function getErrorMessage(err: unknown): string {

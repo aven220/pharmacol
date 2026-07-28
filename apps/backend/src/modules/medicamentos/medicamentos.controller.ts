@@ -1,5 +1,7 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsArray, IsOptional, IsString } from 'class-validator';
 import { RequirePermissions } from '../../common/decorators/auth.decorators';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -7,6 +9,28 @@ import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { MedicamentosService } from './medicamentos.service';
 import { AlertasSanitariasService } from '../alertas-sanitarias/alertas-sanitarias.service';
 import { SearchMedicamentosDto } from './dto/search-medicamentos.dto';
+
+class CumBatchLookupDto {
+  @ApiProperty({
+    required: false,
+    type: [String],
+    example: ['3521-1', '20031822-1'],
+    description: 'Lista de codigos CUM (uno o muchos)',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  codigos?: string[];
+
+  @ApiProperty({
+    required: false,
+    example: '3521-1, 20031822-1\n999999-1',
+    description: 'Texto libre con codigos CUM separados por coma, espacio o salto de linea',
+  })
+  @IsOptional()
+  @IsString()
+  texto?: string;
+}
 
 @ApiTags('Medicamentos')
 @ApiBearerAuth()
@@ -58,6 +82,15 @@ export class MedicamentosController {
   @ApiOperation({ summary: 'Buscar por código de barras (puede devolver varias presentaciones)' })
   byBarcode(@Param('codigo') codigo: string) {
     return this.service.findByBarcode(codigo);
+  }
+
+  @Post('cum/estado-lote')
+  @RequirePermissions('medicamentos:read')
+  @ApiOperation({
+    summary: 'Consultar uno o varios CUM (activo/inactivo/no existe) con detalle del medicamento',
+  })
+  lookupCumBatch(@Body() dto: CumBatchLookupDto) {
+    return this.service.lookupCumBatch(dto.codigos ?? [], dto.texto ?? '');
   }
 
   @Get(':id/alertas')

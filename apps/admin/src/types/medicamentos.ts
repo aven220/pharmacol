@@ -68,6 +68,35 @@ export type MedicamentoAlertasResponse = {
   total: number;
 };
 
+export type CumBatchLookupItem = {
+  codigoCum: string;
+  estadoConsulta: 'ACTIVO' | 'INACTIVO' | 'NO_EXISTE';
+  estadoCum?: string | null;
+  estadoRegistro?: string | null;
+  descripcionProducto?: string | null;
+  medicamento?: {
+    id: string;
+    nombreComercial: string;
+    numeroRegistro?: string | null;
+    laboratorio?: string | null;
+    concentracion?: string | null;
+    formaFarmaceutica?: string | null;
+  } | null;
+};
+
+export type CumBatchLookupResponse = {
+  items: CumBatchLookupItem[];
+  total: number;
+  message?: string;
+  resumen?: {
+    totalConsultados: number;
+    existentes: number;
+    activos: number;
+    inactivos: number;
+    noExiste: number;
+  };
+};
+
 export type MedicamentoDetail = {
   id: string;
   nombreComercial: string;

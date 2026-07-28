@@ -174,6 +174,12 @@ function mapEstado(estado?: string): RegistrationStatus {
   return RegistrationStatus.OTRO;
 }
 
+function parseDateSafe(value?: string | null): Date | undefined {
+  if (!value?.trim()) return undefined;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? undefined : d;
+}
+
 @Injectable()
 export class SyncService implements OnModuleInit {
   private readonly logger = new Logger(SyncService.name);
@@ -225,6 +231,17 @@ export class SyncService implements OnModuleInit {
       this.prisma.syncJob.count(),
     ]);
     return { items, meta: { total, page, limit } };
+  }
+
+  async listJobErrors(jobId: string, limit = 100) {
+    const job = await this.prisma.syncJob.findUnique({ where: { id: jobId } });
+    if (!job) throw new NotFoundException('Sincronización no encontrada');
+    const items = await this.prisma.syncError.findMany({
+      where: { syncJobId: jobId },
+      orderBy: { filaNumero: 'asc' },
+      take: Math.min(Math.max(limit, 1), 500),
+    });
+    return { items, total: items.length };
   }
 
   async executeManual(fuenteCodigo: string, userId?: string, force = false) {
@@ -722,14 +739,14 @@ export class SyncService implements OnModuleInit {
       where: { numeroRegistro },
       update: {
         estado: record.estadoregistro,
-        fechaVencimiento: record.fechavencimiento ? new Date(record.fechavencimiento) : undefined,
+        fechaVencimiento: parseDateSafe(record.fechavencimiento),
       },
       create: {
         numeroRegistro,
         expediente: record.expedientecum,
         estado: record.estadoregistro,
-        fechaExpedicion: record.fechaexpedicion ? new Date(record.fechaexpedicion) : undefined,
-        fechaVencimiento: record.fechavencimiento ? new Date(record.fechavencimiento) : undefined,
+        fechaExpedicion: parseDateSafe(record.fechaexpedicion),
+        fechaVencimiento: parseDateSafe(record.fechavencimiento),
         tipoProducto: ProductType.MEDICAMENTO,
       },
     });
@@ -747,7 +764,7 @@ export class SyncService implements OnModuleInit {
       titularId,
       laboratorioId: titularId,
       estadoRegistro: mapEstado(record.estadoregistro),
-      fechaVencimiento: record.fechavencimiento ? new Date(record.fechavencimiento) : undefined,
+      fechaVencimiento: parseDateSafe(record.fechavencimiento),
       hashContenido: hash,
       fuente: DataOrigin.INVIMA,
     };
@@ -964,12 +981,12 @@ export class SyncService implements OnModuleInit {
       where: { numeroRegistro },
       update: {
         estado: record.estadoregistro,
-        fechaVencimiento: record.fechavencimiento ? new Date(record.fechavencimiento) : undefined,
+        fechaVencimiento: parseDateSafe(record.fechavencimiento),
       },
       create: {
         numeroRegistro,
         estado: record.estadoregistro,
-        fechaVencimiento: record.fechavencimiento ? new Date(record.fechavencimiento) : undefined,
+        fechaVencimiento: parseDateSafe(record.fechavencimiento),
         tipoProducto: ProductType.DISPOSITIVO,
       },
     });
@@ -1096,7 +1113,8 @@ export class SyncService implements OnModuleInit {
     const hash = createHash('sha256').update(JSON.stringify(record)).digest('hex');
     const claveNatural = numeroAlerta;
     const { tipo, url } = parseComunicadoInvima(record.comunicadoInvima);
-    const fechaAlerta = new Date(record.fecha);
+    const fechaAlerta = parseDateSafe(record.fecha);
+    if (!fechaAlerta) return 'SKIP';
 
     const existingStaging = await this.prisma.syncStagingRecord.findUnique({
       where: { fuenteCodigo_claveNatural: { fuenteCodigo, claveNatural } },
@@ -1263,7 +1281,8 @@ export class SyncService implements OnModuleInit {
     const numeroAlerta = record.numeroAlerta;
     const hash = createHash('sha256').update(JSON.stringify(record)).digest('hex');
     const claveNatural = numeroAlerta;
-    const fechaAlerta = new Date(record.fecha);
+    const fechaAlerta = parseDateSafe(record.fecha);
+    if (!fechaAlerta) return 'SKIP';
 
     const existingStaging = await this.prisma.syncStagingRecord.findUnique({
       where: { fuenteCodigo_claveNatural: { fuenteCodigo, claveNatural } },

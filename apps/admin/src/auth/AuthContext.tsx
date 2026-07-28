@@ -84,6 +84,7 @@ export function useAuth() {
 
 export const NAV_ITEMS = [
   { to: '/consulta', label: 'Consulta', permission: 'medicamentos:read' },
+  { to: '/cum-estado', label: 'Estado CUM', permission: 'medicamentos:read' },
   { to: '/alertas', label: 'Alertas INVIMA', permission: 'alertas:view' },
   { to: '/', label: 'Dashboard', permission: 'dashboard:view', end: true },
   { to: '/users', label: 'Usuarios', permission: 'users:manage' },

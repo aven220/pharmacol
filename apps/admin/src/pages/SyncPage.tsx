@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   cancelSyncJob,
   deleteSyncJob,
+  fetchSyncErrors,
   fetchFuentes,
   fetchSyncHistory,
   getErrorMessage,
@@ -22,6 +23,12 @@ type SyncJob = {
   metadata?: { canceladoPorAdmin?: boolean; errorMensaje?: string; errores?: number; nota?: string; sinCambiosNuevos?: boolean };
 };
 
+type SyncErrorRow = {
+  filaNumero?: number;
+  errorMensaje?: string;
+  valor?: string;
+};
+
 export default function SyncPage() {
   const [history, setHistory] = useState<{ items: SyncJob[] } | null>(null);
   const [fuentes, setFuentes] = useState<Array<{ codigo: string; nombre: string; activo: boolean }>>([]);
@@ -29,6 +36,8 @@ export default function SyncPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionId, setActionId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [selectedErrors, setSelectedErrors] = useState<SyncErrorRow[] | null>(null);
+  const [errorsTitle, setErrorsTitle] = useState<string>('');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   async function load() {
@@ -105,6 +114,19 @@ export default function SyncPage() {
       await deleteSyncJob(job.id);
       setMessage('Registro eliminado.');
       await load();
+    } catch (e) {
+      setMessage(getErrorMessage(e));
+    } finally {
+      setActionId(null);
+    }
+  }
+
+  async function handleViewErrors(job: SyncJob) {
+    setActionId(`errors-${job.id}`);
+    try {
+      const data = await fetchSyncErrors(job.id, 50);
+      setSelectedErrors(Array.isArray(data.items) ? data.items : []);
+      setErrorsTitle(`${job.fuente?.codigo ?? 'SYNC'} — ${job.registrosError ?? 0} error(es)`);
     } catch (e) {
       setMessage(getErrorMessage(e));
     } finally {
@@ -193,6 +215,10 @@ export default function SyncPage() {
             ) : null}
           </div>
         ))}
+        <p style={{ fontSize: 12, color: '#666', marginTop: 12 }}>
+          Nota: la fuente de vencidos (<code>INVIMA_CUM_VENCIDOS</code>) esta desactivada porque INVIMA retiró
+          ese dataset. Hoy la base oficial vigente ya incluye CUM activos e inactivos.
+        </p>
       </div>
       <div className="card">
         <h3>Historial</h3>
@@ -229,6 +255,16 @@ export default function SyncPage() {
                   <td>{j.registrosError ?? 0}</td>
                   <td>{String(j.createdAt ?? '').slice(0, 19)}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>
+                    {(j.registrosError ?? 0) > 0 ? (
+                      <button
+                        className="btn btn-sm"
+                        style={{ background: '#455a64', marginRight: 6 }}
+                        disabled={busy}
+                        onClick={() => handleViewErrors(j)}
+                      >
+                        Ver errores
+                      </button>
+                    ) : null}
                     {canCancel ? (
                       <button
                         className="btn btn-sm btn-warn"
@@ -254,6 +290,40 @@ export default function SyncPage() {
             })}
           </tbody>
         </table>
+        {selectedErrors ? (
+          <div style={{ marginTop: 14, borderTop: '1px solid #eee', paddingTop: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <strong>{errorsTitle}</strong>
+              <button className="btn btn-sm" style={{ background: '#78909c' }} onClick={() => setSelectedErrors(null)}>
+                Cerrar
+              </button>
+            </div>
+            {selectedErrors.length === 0 ? (
+              <p style={{ fontSize: 13, color: '#666' }}>No hay filas de error guardadas para este job.</p>
+            ) : (
+              <table style={{ marginTop: 10 }}>
+                <thead>
+                  <tr>
+                    <th>Fila</th>
+                    <th>Error</th>
+                    <th>Valor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedErrors.map((er, idx) => (
+                    <tr key={`${er.filaNumero ?? idx}-${idx}`}>
+                      <td>{er.filaNumero ?? '—'}</td>
+                      <td>{er.errorMensaje ?? 'Error desconocido'}</td>
+                      <td style={{ maxWidth: 420, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {er.valor ?? '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        ) : null}
       </div>
     </div>
   );

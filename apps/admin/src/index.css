@@ -263,6 +263,16 @@ label { display: block; font-size: 14px; margin-bottom: 4px; }
 .alerta-numero { font-size: 12px; color: #666; margin: 0 0 8px; }
 .alerta-desc { font-size: 13px; line-height: 1.5; color: #444; margin: 0 0 10px; }
 .alerta-pdf { font-size: 13px; font-weight: 600; }
+.cum-estado {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.cum-estado-ok { background: #e8f5e9; color: #2e7d32; }
+.cum-estado-warn { background: #fff8e1; color: #ef6c00; }
+.cum-estado-none { background: #ffebee; color: #c62828; }
 @media (max-width: 640px) {
   .info-row { grid-template-columns: 1fr; gap: 2px; }
 }

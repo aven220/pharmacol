@@ -498,6 +498,99 @@ export class MedicamentosService {
     return { items, total: items.length };
   }
 
+  async lookupCumBatch(codigos: string[], texto: string) {
+    const parsedFromText = texto
+      .split(/[\s,;]+/)
+      .map((v) => v.trim())
+      .filter(Boolean);
+
+    const requestedRaw = [...codigos, ...parsedFromText];
+    const seen = new Set<string>();
+    const requested = requestedRaw
+      .map((code) => this.normalizeCumCode(code))
+      .filter((code) => {
+        if (!code) return false;
+        if (seen.has(code)) return false;
+        seen.add(code);
+        return true;
+      });
+
+    if (!requested.length) {
+      return {
+        items: [],
+        total: 0,
+        message: 'Ingrese al menos un codigo CUM valido (ej: 3521-1).',
+      };
+    }
+
+    const found = await this.prisma.codigoCum.findMany({
+      where: { codigoCompleto: { in: requested } },
+      include: {
+        medicamento: {
+          include: {
+            registroInvima: true,
+            laboratorio: true,
+          },
+        },
+      },
+    });
+
+    const foundByCode = new Map(found.map((f) => [f.codigoCompleto.toUpperCase(), f]));
+
+    const items = requested.map((codigo) => {
+      const hit = foundByCode.get(codigo.toUpperCase());
+      if (!hit) {
+        return {
+          codigoCum: codigo,
+          estadoConsulta: 'NO_EXISTE' as const,
+          estadoCum: null,
+          estadoRegistro: null,
+          medicamento: null,
+        };
+      }
+      return {
+        codigoCum: codigo,
+        estadoConsulta: this.mapEstadoCumConsulta(hit.estadoCum) as 'ACTIVO' | 'INACTIVO' | 'NO_EXISTE',
+        estadoCum: hit.estadoCum ?? null,
+        estadoRegistro: hit.medicamento.estadoRegistro ?? null,
+        descripcionProducto: hit.descripcionProducto ?? null,
+        medicamento: {
+          id: hit.medicamento.id,
+          nombreComercial: hit.medicamento.nombreComercial,
+          numeroRegistro: hit.medicamento.registroInvima?.numeroRegistro ?? null,
+          laboratorio: hit.medicamento.laboratorio?.razonSocial ?? null,
+          concentracion: hit.medicamento.concentracion ?? null,
+          formaFarmaceutica: hit.medicamento.formaFarmaceutica ?? null,
+        },
+      };
+    });
+
+    const resumen = {
+      totalConsultados: items.length,
+      existentes: items.filter((i) => i.estadoConsulta !== 'NO_EXISTE').length,
+      activos: items.filter((i) => i.estadoConsulta === 'ACTIVO').length,
+      inactivos: items.filter((i) => i.estadoConsulta === 'INACTIVO').length,
+      noExiste: items.filter((i) => i.estadoConsulta === 'NO_EXISTE').length,
+    };
+
+    return { items, total: items.length, resumen };
+  }
+
+  private normalizeCumCode(input: string): string {
+    const cleaned = input.trim().toUpperCase().replace(/\s+/g, '');
+    if (!cleaned) return '';
+    const match = cleaned.match(/^(\d+)-?(\d+)$/);
+    if (!match) return cleaned;
+    return `${match[1]}-${match[2]}`;
+  }
+
+  private mapEstadoCumConsulta(estadoCum?: string | null): 'ACTIVO' | 'INACTIVO' {
+    const normalized = (estadoCum ?? '').toLowerCase();
+    if (normalized.includes('inactivo')) return 'INACTIVO';
+    if (normalized.includes('activo')) return 'ACTIVO';
+    return 'INACTIVO';
+  }
+
   async offlinePack(page = 1, limit = 500) {
     const skip = (page - 1) * limit;
     const [items, total] = await Promise.all([
