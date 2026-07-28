@@ -1,13 +1,20 @@
 import Constants from 'expo-constants';
 
+/** API del servidor Windows en red local (LAN). */
+export const DEFAULT_LAN_API_URL = 'http://192.168.20.26:3906/pharmacol/v1';
+
 export function normalizeApiUrl(input: string): string {
   let url = input.trim().replace(/\/+$/, '');
   url = url.replace(/\/health$/i, '');
 
   try {
-    const withProto = url.match(/^https?:\/\//i) ? url : `https://${url}`;
+    const withProto = url.match(/^https?:\/\//i) ? url : `http://${url}`;
     const parsed = new URL(withProto);
-    if (parsed.hostname === '20.5.19.8' && !parsed.pathname.includes('/pharmacol')) {
+    // Servidores conocidos sin /pharmacol en el path
+    if (
+      (parsed.hostname === '192.168.20.26' || parsed.hostname === '20.5.19.8') &&
+      !parsed.pathname.includes('/pharmacol')
+    ) {
       parsed.pathname = '/pharmacol/v1';
     }
     url = `${parsed.origin}${parsed.pathname}`.replace(/\/+$/, '');
@@ -23,7 +30,7 @@ export function normalizeApiUrl(input: string): string {
 
 /** URL fija embebida en la APK (build time) */
 export const PRODUCTION_API_URL = normalizeApiUrl(
-  process.env.EXPO_PUBLIC_API_URL?.trim() || 'https://20.5.19.8/pharmacol/v1',
+  process.env.EXPO_PUBLIC_API_URL?.trim() || DEFAULT_LAN_API_URL,
 );
 
 function resolveBuildApiUrl(): string {

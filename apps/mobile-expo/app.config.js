@@ -2,7 +2,7 @@
 const appJson = require('./app.json');
 
 const apiUrl = (
-  process.env.EXPO_PUBLIC_API_URL || 'https://20.5.19.8/pharmacol/v1'
+  process.env.EXPO_PUBLIC_API_URL || 'http://192.168.20.26:3906/pharmacol/v1'
 ).replace(/\/$/, '');
 
 module.exports = {
@@ -11,7 +11,8 @@ module.exports = {
     plugins: [...(appJson.expo.plugins || []), './plugins/with-server-ssl-trust.js'],
     android: {
       ...appJson.expo.android,
-      versionCode: 3,
+      versionCode: 4,
+      usesCleartextTraffic: true,
     },
     extra: {
       ...appJson.expo.extra,

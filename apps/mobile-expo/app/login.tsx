@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -12,17 +12,9 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { applyApiBaseUrl, checkServerHealth, loginApi, getErrorMessage } from '@/services/api';
-import { PRODUCTION_API_URL } from '@/config/api';
+import { applyApiBaseUrl, loginApi, getErrorMessage } from '@/services/api';
+import { getApiUrl } from '@/config/api';
 import { useAuthStore } from '@/store/auth.store';
-
-function friendlyConnectionError(raw?: string): string {
-  if (!raw) return 'No se puede conectar al servidor';
-  if (/network request failed|certificate|ssl|handshake|trust/i.test(raw)) {
-    return 'No se pudo verificar el certificado HTTPS del servidor. Reinstala la APK generada con el certificado incluido.';
-  }
-  return raw;
-}
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -31,38 +23,21 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('admin123');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [serverOk, setServerOk] = useState<boolean | null>(null);
-  const [checking, setChecking] = useState(true);
-
-  const probeServer = useCallback(async () => {
-    setChecking(true);
-    setError(null);
-    await applyApiBaseUrl();
-    const result = await checkServerHealth();
-    setServerOk(result.ok);
-    if (!result.ok) {
-      setError(friendlyConnectionError(result.error));
-    }
-    setChecking(false);
-  }, []);
 
   useEffect(() => {
-    probeServer();
-  }, [probeServer]);
+    applyApiBaseUrl().catch(() => undefined);
+  }, []);
 
   async function onSubmit() {
-    if (!serverOk) {
-      setError('Sin conexión al servidor. Pulsa Reintentar.');
-      return;
-    }
     setLoading(true);
     setError(null);
     try {
+      await applyApiBaseUrl();
       const { tokens, user } = await loginApi(email.trim(), password);
       await setSession(user, tokens);
       router.replace('/(tabs)');
     } catch (e) {
-      setError(getErrorMessage(e, 'Credenciales inválidas'));
+      setError(getErrorMessage(e, 'No se pudo iniciar sesión. Verifica red Wi‑Fi y credenciales.'));
     } finally {
       setLoading(false);
     }
@@ -77,16 +52,7 @@ export default function LoginScreen() {
         <Ionicons name="medical" size={64} color="#006874" />
         <Text style={styles.title}>PharmaCol</Text>
         <Text style={styles.subtitle}>Consulta farmacéutica INVIMA</Text>
-
-        <View style={styles.statusBox}>
-          {checking ? (
-            <ActivityIndicator size="small" color="#006874" />
-          ) : (
-            <Text style={[styles.statusText, serverOk ? styles.statusOk : styles.statusFail]}>
-              {serverOk ? '● Servidor conectado' : '● Sin conexión al servidor'}
-            </Text>
-          )}
-        </View>
+        <Text style={styles.apiHint}>{getApiUrl()}</Text>
 
         <TextInput
           style={styles.input}
@@ -108,16 +74,10 @@ export default function LoginScreen() {
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        {!serverOk && !checking ? (
-          <Pressable style={styles.retryBtn} onPress={probeServer}>
-            <Text style={styles.retryText}>Reintentar conexión</Text>
-          </Pressable>
-        ) : null}
-
         <Pressable
-          style={[styles.button, (!serverOk || loading || checking) && styles.buttonDisabled]}
+          style={[styles.button, loading && styles.buttonDisabled]}
           onPress={onSubmit}
-          disabled={loading || checking || !serverOk}
+          disabled={loading}
         >
           {loading ? (
             <ActivityIndicator color="#fff" />
@@ -133,11 +93,14 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: { flexGrow: 1, justifyContent: 'center', padding: 24, backgroundColor: '#fff' },
   title: { fontSize: 28, fontWeight: '700', textAlign: 'center', marginTop: 12, color: '#111' },
-  subtitle: { textAlign: 'center', color: '#666', marginBottom: 16 },
-  statusBox: { alignItems: 'center', marginBottom: 20 },
-  statusText: { fontSize: 14, fontWeight: '600' },
-  statusOk: { color: '#2e7d32' },
-  statusFail: { color: '#c62828' },
+  subtitle: { textAlign: 'center', color: '#666', marginBottom: 8 },
+  apiHint: {
+    textAlign: 'center',
+    color: '#999',
+    fontSize: 11,
+    marginBottom: 20,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
   input: {
     borderWidth: 1,
     borderColor: '#ddd',
@@ -148,12 +111,6 @@ const styles = StyleSheet.create({
     color: '#111',
     backgroundColor: '#fff',
   },
-  retryBtn: {
-    alignItems: 'center',
-    padding: 12,
-    marginBottom: 8,
-  },
-  retryText: { color: '#006874', fontWeight: '600', fontSize: 14 },
   button: {
     backgroundColor: '#006874',
     borderRadius: 12,

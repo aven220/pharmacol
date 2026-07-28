@@ -1,37 +1,19 @@
 #!/usr/bin/env bash
-# Genera APK Android (EAS) — URL del servidor embebida en la app
+# Genera APK Android (EAS) — apunta al servidor LAN 192.168.20.26:3906
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MOBILE="$ROOT/apps/mobile-expo"
 PROFILE="${1:-preview}"
+API_URL="${EXPO_PUBLIC_API_URL:-http://192.168.20.26:3906/pharmacol/v1}"
 
 echo "==> PharmaCol — build APK (perfil: ${PROFILE})"
-echo "    API: https://20.5.19.8/pharmacol/v1"
+echo "    API: ${API_URL}"
 echo ""
-
-CERT="$MOBILE/certs/server.pem"
-if [[ ! -f "$CERT" ]]; then
-  echo "→ Copiando certificado SSL del servidor..."
-  bash "$ROOT/scripts/prepare-mobile-cert.sh" || true
-fi
-if [[ ! -f "$CERT" ]]; then
-  echo "ERROR: Falta $CERT — Android no confía en HTTPS autofirmado sin este archivo."
-  echo "  scp aven220@20.5.19.8:~/pharma-delivery/infra/ssl/fullchain.pem $CERT"
-  exit 1
-fi
 
 cd "$ROOT"
 echo "→ Dependencias..."
 pnpm install
-
-if ! git diff --quiet HEAD -- apps/mobile-expo pnpm-lock.yaml 2>/dev/null; then
-  echo ""
-  echo "⚠ Hay cambios sin commit en mobile-expo."
-  echo "  Recomendado: git add -A && git commit -m 'fix: mobile APK build'"
-  echo "  (EAS sube archivos locales, pero commit ayuda a rastrear el build)"
-  echo ""
-fi
 
 if [[ ! -f "$MOBILE/assets/icon.png" ]]; then
   echo "ERROR: Falta $MOBILE/assets/icon.png"
@@ -40,8 +22,15 @@ fi
 
 cd "$MOBILE"
 
-if [[ ! -f .env.production ]]; then
-  echo "EXPO_PUBLIC_API_URL=https://20.5.19.8/pharmacol/v1" > .env.production
+# Embebe URL del servidor Windows LAN
+echo "EXPO_PUBLIC_API_URL=${API_URL}" > .env.production
+export EXPO_PUBLIC_API_URL="$API_URL"
+export PHARMACOL_SERVER_HOST="${PHARMACOL_SERVER_HOST:-192.168.20.26}"
+
+# Certificado SSL opcional (solo si usas HTTPS autofirmado)
+CERT="$MOBILE/certs/server.pem"
+if [[ ! -f "$CERT" ]]; then
+  echo "→ (opcional) Sin certs/server.pem — OK para HTTP LAN"
 fi
 
 EAS=(pnpm exec eas)
@@ -57,5 +46,7 @@ else
 fi
 
 echo ""
-echo "✓ Descarga el .apk del enlace EAS e instálalo."
+echo "✓ Descarga el .apk del enlace EAS e instálalo en el celular."
+echo "  Requisitos: celular y servidor en la MISMA Wi‑Fi (192.168.20.x)"
 echo "  Login: admin@pharmacol.co / admin123"
+echo "  API embebida: ${API_URL}"
