@@ -31,6 +31,11 @@ interface SocrataRecord {
   cantidadcum?: string;
   principioactivo?: string;
   concentracion?: string;
+  cantidad?: string;
+  unidadmedida?: string;
+  unidadreferencia?: string;
+  unidad?: string;
+  viaadministracion?: string;
   formafarmaceutica?: string;
   titular?: string;
   fabricante?: string;
@@ -79,6 +84,11 @@ function normalizeCumRecord(raw: Record<string, unknown>): SocrataRecord {
     cantidadcum: pickField(raw, 'cantidadcum', 'cantidad_cum'),
     principioactivo: pickField(raw, 'principioactivo', 'principio_activo'),
     concentracion: pickField(raw, 'concentracion'),
+    cantidad: pickField(raw, 'cantidad'),
+    unidadmedida: pickField(raw, 'unidadmedida', 'unidad_medida'),
+    unidadreferencia: pickField(raw, 'unidadreferencia', 'unidad_referencia'),
+    unidad: pickField(raw, 'unidad'),
+    viaadministracion: pickField(raw, 'viaadministracion', 'via_administracion'),
     formafarmaceutica: pickField(raw, 'formafarmaceutica', 'forma_farmaceutica'),
     titular: pickField(raw, 'titular'),
     fabricante: pickField(raw, 'fabricante'),
@@ -88,6 +98,30 @@ function normalizeCumRecord(raw: Record<string, unknown>): SocrataRecord {
     fechavencimiento: pickField(raw, 'fechavencimiento', 'fecha_vencimiento'),
     estadocum: pickField(raw, 'estadocum', 'estado_cum'),
   };
+}
+
+/**
+ * INVIMA suele enviar concentracion="D" (tipo) y la cantidad real en cantidad+unidadmedida.
+ * Ej: 10 g / 100 G DE CREMA VAGINAL
+ */
+function formatPrincipioConcentracion(record: SocrataRecord): string | undefined {
+  const cantidad = record.cantidad?.trim();
+  const unidadMedida = record.unidadmedida?.trim() ?? record.unidad?.trim();
+  const unidadRef = record.unidadreferencia?.trim();
+  if (cantidad && unidadMedida) {
+    const base = `${cantidad} ${unidadMedida}`;
+    return unidadRef ? `${base} / ${unidadRef}` : base;
+  }
+  const conc = record.concentracion?.trim();
+  // Códigos de tipo de concentración (1 letra) no son cantidades útiles
+  if (conc && conc.length > 1) return conc;
+  return undefined;
+}
+
+function needsPrincipioConcentracionBackfill(existing?: string | null): boolean {
+  if (!existing?.trim()) return true;
+  const v = existing.trim();
+  return v.length <= 1;
 }
 
 interface DispositivoRecord {
@@ -707,7 +741,38 @@ export class SyncService implements OnModuleInit {
       }
     }
 
-    if (existingStaging?.hashContenido === hash && !force && !cumNeedsBackfill) {
+    let paNeedsBackfill = false;
+    if (record.principioactivo) {
+      const existingMedForPa = await this.prisma.medicamento.findFirst({
+        where: { registroInvima: { numeroRegistro } },
+        select: {
+          id: true,
+          principiosActivos: {
+            where: {
+              principioActivo: {
+                nombreNormalizado: normalize(record.principioactivo),
+              },
+            },
+            select: { concentracion: true },
+            take: 1,
+          },
+        },
+      });
+      if (!existingMedForPa) {
+        paNeedsBackfill = true;
+      } else if (existingMedForPa.principiosActivos.length === 0) {
+        paNeedsBackfill = true;
+      } else if (needsPrincipioConcentracionBackfill(existingMedForPa.principiosActivos[0]?.concentracion)) {
+        paNeedsBackfill = true;
+      }
+    }
+
+    if (
+      existingStaging?.hashContenido === hash &&
+      !force &&
+      !cumNeedsBackfill &&
+      !paNeedsBackfill
+    ) {
       return 'SKIP';
     }
 
@@ -765,6 +830,7 @@ export class SyncService implements OnModuleInit {
       nombreNormalizado: normalize(nombreComercial),
       concentracion: record.concentracion,
       formaFarmaceutica: record.formafarmaceutica,
+      viaAdministracion: record.viaadministracion,
       titularId,
       laboratorioId: titularId,
       estadoRegistro: mapEstado(record.estadoregistro),
@@ -775,7 +841,7 @@ export class SyncService implements OnModuleInit {
 
     let action: 'INSERT' | 'UPDATE' | 'SKIP';
     if (existingMed) {
-      if (existingMed.hashContenido === hash && !force && !cumNeedsBackfill) {
+      if (existingMed.hashContenido === hash && !force && !cumNeedsBackfill && !paNeedsBackfill) {
         action = 'SKIP';
       } else {
         await this.prisma.medicamento.update({
@@ -792,6 +858,7 @@ export class SyncService implements OnModuleInit {
     }
 
     if (record.principioactivo) {
+      const paConc = formatPrincipioConcentracion(record);
       const pa = await this.prisma.activeIngredient.upsert({
         where: { nombreNormalizado: normalize(record.principioactivo) },
         update: {},
@@ -810,11 +877,13 @@ export class SyncService implements OnModuleInit {
             principioActivoId: pa.id,
           },
         },
-        update: { concentracion: record.concentracion },
+        update: {
+          ...(paConc ? { concentracion: paConc } : {}),
+        },
         create: {
           medicamentoId: med.id,
           principioActivoId: pa.id,
-          concentracion: record.concentracion,
+          concentracion: paConc,
           esPrincipal: true,
         },
       });

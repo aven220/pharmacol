@@ -13,21 +13,21 @@ export class DispositivosController {
   constructor(private readonly service: DispositivosService) {}
 
   @Get('search')
-  @RequirePermissions('dispositivos:read')
+  @RequirePermissions('medicamentos:read')
   @ApiOperation({ summary: 'Búsqueda de dispositivos médicos' })
   search(@Query() query: SearchDispositivosDto) {
     return this.service.search(query);
   }
 
   @Get('registro/:numero')
-  @RequirePermissions('dispositivos:read')
+  @RequirePermissions('medicamentos:read')
   @ApiOperation({ summary: 'Buscar por registro INVIMA' })
   byRegistro(@Param('numero') numero: string) {
     return this.service.findByRegistro(numero);
   }
 
   @Get(':id')
-  @RequirePermissions('dispositivos:read')
+  @RequirePermissions('medicamentos:read')
   @ApiOperation({ summary: 'Detalle de dispositivo' })
   findOne(@Param('id') id: string) {
     return this.service.findById(id);

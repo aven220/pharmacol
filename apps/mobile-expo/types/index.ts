@@ -310,7 +310,10 @@ export function mapMedicamentoDetail(raw: Record<string, unknown>): MedicamentoD
     titular: titular?.razonSocial as string | undefined,
     principiosActivos: principios.map((p) => {
       const pa = p.principioActivo as Record<string, unknown> | undefined;
-      return String(pa?.nombreOficial ?? '—');
+      const nombre = String(pa?.nombreOficial ?? pa?.nombreNormalizado ?? '—');
+      const rawConc = String(p.concentracion ?? '').trim();
+      const conc = rawConc.length > 1 ? rawConc : '';
+      return conc ? `${nombre} — ${conc}` : nombre;
     }),
     presentaciones: buildPresentaciones(raw),
   };

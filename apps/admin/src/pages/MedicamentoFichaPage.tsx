@@ -146,11 +146,27 @@ export default function MedicamentoFichaPage() {
       {detail.principiosActivos.length > 0 ? (
         <section className="ficha-section">
           <h3>Principios activos</h3>
-          <ul className="bullet-list">
-            {detail.principiosActivos.map((p, i) => (
-              <li key={i}>{p}</li>
-            ))}
-          </ul>
+          <table className="pa-table">
+            <thead>
+              <tr>
+                <th>Principio activo</th>
+                <th>Cantidad / concentración</th>
+              </tr>
+            </thead>
+            <tbody>
+              {detail.principiosActivos.map((p, i) => {
+                const [nombre, cantidad] = p.includes(' — ')
+                  ? (p.split(' — ') as [string, string])
+                  : [p, ''];
+                return (
+                  <tr key={i}>
+                    <td>{nombre}</td>
+                    <td>{cantidad || '—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </section>
       ) : null}
 

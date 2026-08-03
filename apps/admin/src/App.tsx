@@ -114,7 +114,7 @@ function AppRoutes() {
                 <Route
                   path="/dispositivos/:id"
                   element={
-                    <RequirePermission permission="dispositivos:read">
+                    <RequirePermission permission="medicamentos:read">
                       <DispositivoDetallePage />
                     </RequirePermission>
                   }

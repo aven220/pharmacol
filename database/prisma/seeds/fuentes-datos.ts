@@ -18,7 +18,8 @@ export const DATA_SOURCES = [
       columnas: [
         'registrosanitario', 'expedientecum', 'consecutivocum', 'producto',
         'descripcioncomercial', 'cantidadcum',
-        'principioactivo', 'concentracion', 'formafarmaceutica',
+        'principioactivo', 'concentracion', 'cantidad', 'unidadmedida', 'unidadreferencia',
+        'formafarmaceutica', 'viaadministracion',
         'titular', 'fabricante', 'importador', 'estadoregistro',
         'fechaexpedicion', 'fechavencimiento', 'estadocum',
       ],

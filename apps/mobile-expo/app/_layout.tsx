@@ -51,6 +51,7 @@ export default function RootLayout() {
           <Stack.Screen name="login" />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="medicamentos" options={{ headerShown: false }} />
+          <Stack.Screen name="dispositivos" options={{ headerShown: false }} />
         </Stack>
       </AuthGuard>
     </QueryClientProvider>

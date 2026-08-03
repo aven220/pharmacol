@@ -29,6 +29,14 @@ type SyncErrorRow = {
   valor?: string;
 };
 
+/** Orden de actualización completa (una tras otra). */
+const SYNC_ALL_ORDER = [
+  'INVIMA_CUM_VIGENTES',
+  'INVIMA_DISPOSITIVOS',
+  'INVIMA_ALERTAS_SANITARIAS',
+  'INVIMA_ALERTAS_PORTAL',
+] as const;
+
 export default function SyncPage() {
   const [history, setHistory] = useState<{ items: SyncJob[] } | null>(null);
   const [fuentes, setFuentes] = useState<Array<{ codigo: string; nombre: string; activo: boolean }>>([]);
@@ -39,6 +47,7 @@ export default function SyncPage() {
   const [selectedErrors, setSelectedErrors] = useState<SyncErrorRow[] | null>(null);
   const [errorsTitle, setErrorsTitle] = useState<string>('');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const cancelAllRef = useRef(false);
 
   async function load() {
     setLoadError(null);
@@ -90,6 +99,53 @@ export default function SyncPage() {
       setMessage(getErrorMessage(e));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function runSyncAll(force = false) {
+    const activas = new Set(fuentes.filter((f) => f.activo).map((f) => f.codigo));
+    const cola = SYNC_ALL_ORDER.filter((c) => activas.has(c));
+    if (cola.length === 0) {
+      setMessage('No hay fuentes activas para sincronizar.');
+      return;
+    }
+
+    cancelAllRef.current = false;
+    setLoading(true);
+    setActionId('sync-all');
+    const resumen: string[] = [];
+
+    try {
+      for (let i = 0; i < cola.length; i++) {
+        if (cancelAllRef.current) {
+          resumen.push('Cancelado por el usuario');
+          break;
+        }
+        const codigo = cola[i];
+        setMessage(
+          `Actualizando todo (${i + 1}/${cola.length}): ${codigo}` +
+            (force ? ' (forzado)' : '') +
+            '… Al terminar pasa a la siguiente.',
+        );
+        try {
+          const result = await triggerSync(codigo, force);
+          resumen.push(
+            `${codigo}: ${result.read ?? result.registrosLeidos ?? 0} leídos, ` +
+              `${result.inserted ?? result.registrosInsertados ?? 0} ins, ` +
+              `${result.updated ?? result.registrosActualizados ?? 0} upd`,
+          );
+          await load();
+        } catch (e) {
+          resumen.push(`${codigo}: ERROR — ${getErrorMessage(e)}`);
+          // Continúa con la siguiente fuente
+        }
+      }
+      setMessage(`Actualización completa.\n${resumen.join('\n')}`);
+    } finally {
+      setLoading(false);
+      setActionId(null);
+      cancelAllRef.current = false;
+      await load();
     }
   }
 
@@ -169,30 +225,72 @@ export default function SyncPage() {
           Error cargando datos: {loadError}
         </p>
       ) : null}
-      {message ? <p style={{ background: '#e8f4f6', padding: 12, borderRadius: 8 }}>{message}</p> : null}
+      {message ? (
+        <p style={{ background: '#e8f4f6', padding: 12, borderRadius: 8, whiteSpace: 'pre-wrap' }}>
+          {message}
+        </p>
+      ) : null}
       <div className="card">
         <h3>Fuentes activas</h3>
         <p style={{ fontSize: 13, color: '#666' }}>
           Fuentes útiles:
-          <br />• <code>INVIMA_CUM_VIGENTES</code> — medicamentos (puede reportar errores menores
-          por filas incompletas; si el % de error es bajo, la base queda usable).
-          <br />• <code>INVIMA_DISPOSITIVOS</code> — dispositivos médicos (hay que ejecutarla
-          aparte; sin esta sync la búsqueda de DM queda vacía).
+          <br />• <code>INVIMA_CUM_VIGENTES</code> — medicamentos (incluye cantidades de principio
+          activo: cantidad + unidad).
+          <br />• <code>INVIMA_DISPOSITIVOS</code> — dispositivos médicos.
           <br />• <code>INVIMA_ALERTAS_PORTAL</code> / <code>INVIMA_ALERTAS_SANITARIAS</code> —
           alertas.
           <br />
           <strong>Token INVIMA es opcional</strong>. Si una sync no arranca, use &quot;Liberar
           colgadas&quot;. Omitidos altos en re-sync es normal.
         </p>
-        <button
-          type="button"
-          className="btn"
-          style={{ marginBottom: 16, background: '#5c6bc0' }}
-          disabled={loading || actionId === 'reset'}
-          onClick={() => handleResetStuck()}
-        >
-          {actionId === 'reset' ? 'Liberando…' : 'Liberar syncs colgadas'}
-        </button>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+          <button
+            type="button"
+            className="btn"
+            style={{ background: '#006874' }}
+            disabled={loading}
+            onClick={() => {
+              if (
+                !window.confirm(
+                  '¿Actualizar todas las fuentes activas en secuencia?\n\nOrden: CUM → Dispositivos → Alertas datos.gov → Alertas portal.\nPuede tardar bastante.',
+                )
+              ) {
+                return;
+              }
+              runSyncAll(false).catch(console.error);
+            }}
+          >
+            {actionId === 'sync-all' ? 'Actualizando todo…' : 'Actualizar todo (secuencial)'}
+          </button>
+          <button
+            type="button"
+            className="btn"
+            style={{ background: '#e65100' }}
+            disabled={loading}
+            onClick={() => {
+              if (
+                !window.confirm(
+                  '¿Reimportar TODO forzado (borra caché staging de cada fuente)?\nPuede tardar mucho.',
+                )
+              ) {
+                return;
+              }
+              runSyncAll(true).catch(console.error);
+            }}
+          >
+            Reimportar todo (forzado)
+          </button>
+          <button
+            type="button"
+            className="btn"
+            style={{ background: '#5c6bc0' }}
+            disabled={loading || actionId === 'reset'}
+            onClick={() => handleResetStuck()}
+          >
+            {actionId === 'reset' ? 'Liberando…' : 'Liberar syncs colgadas'}
+          </button>
+        </div>
         {!loadError && fuentes.filter((f) => f.activo).length === 0 ? (
           <p style={{ color: '#e65100', fontSize: 13 }}>
             No hay fuentes activas en la BD. En el servidor ejecuta:{' '}

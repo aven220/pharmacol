@@ -151,8 +151,9 @@ export function mapMedicamentoSummary(raw: Record<string, unknown>): Medicamento
     .map((p) => {
       const pa = p.principioActivo as Record<string, unknown> | undefined;
       const nombre = String(pa?.nombreOficial ?? pa?.nombreNormalizado ?? '');
-      const conc = p.concentracion ? ` ${p.concentracion}` : '';
-      return nombre ? `${nombre}${conc}`.trim() : '';
+      const rawConc = String(p.concentracion ?? '').trim();
+      const conc = rawConc.length > 1 ? rawConc : '';
+      return nombre ? (conc ? `${nombre} ${conc}` : nombre) : '';
     })
     .filter(Boolean)
     .join(' · ');
@@ -222,9 +223,10 @@ export function mapMedicamentoDetail(raw: Record<string, unknown>): MedicamentoD
     contraindicaciones: raw.contraindicaciones as string | undefined,
     principiosActivos: principios.map((p) => {
       const pa = p.principioActivo as Record<string, unknown> | undefined;
-      const nombre = pa?.nombreOficial ?? pa?.nombreNormalizado ?? '';
-      const conc = p.concentracion ? ` (${p.concentracion})` : '';
-      return `${nombre}${conc}`;
+      const nombre = String(pa?.nombreOficial ?? pa?.nombreNormalizado ?? '');
+      const rawConc = String(p.concentracion ?? '').trim();
+      const conc = rawConc.length > 1 ? rawConc : '';
+      return conc ? `${nombre} — ${conc}` : nombre;
     }),
     presentaciones: presItems,
   };

@@ -12,18 +12,30 @@ import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { MedicamentoCard } from '@/components/MedicamentoCard';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
-import { searchMedicamentos, suggestMedicamentos } from '@/services/pharma.service';
+import {
+  searchDispositivos,
+  searchMedicamentos,
+  suggestMedicamentos,
+  type DispositivoSummary,
+} from '@/services/pharma.service';
 import { getErrorMessage } from '@/services/api';
 import { isOnline } from '@/utils/network';
 import type { MedicamentoSuggest, MedicamentoSummary } from '@/types';
 
 const MIN_CHARS = 2;
 
-const TIPO_LABELS: Record<string, string> = {
+type Catalogo = 'medicamentos' | 'dispositivos';
+
+const MED_TIPO_LABELS: Record<string, string> = {
   nombre: 'Nombre',
   registro: 'INVIMA',
   cum: 'CUM',
   principio_activo: 'Principio activo',
+};
+
+const DM_TIPO_LABELS: Record<string, string> = {
+  nombre: 'Nombre',
+  registro: 'INVIMA',
 };
 
 const TIPO_PLACEHOLDERS: Record<string, string> = {
@@ -35,11 +47,20 @@ const TIPO_PLACEHOLDERS: Record<string, string> = {
 
 export default function SearchScreen() {
   const router = useRouter();
+  const [catalogo, setCatalogo] = useState<Catalogo>('medicamentos');
   const [input, setInput] = useState('');
   const [tipo, setTipo] = useState('nombre');
   const [offline, setOffline] = useState(false);
   const debouncedQuery = useDebouncedValue(input.trim(), 350);
   const isLiveSearch = input.trim().length >= MIN_CHARS;
+  const tipoLabels = catalogo === 'dispositivos' ? DM_TIPO_LABELS : MED_TIPO_LABELS;
+
+  function selectCatalogo(next: Catalogo) {
+    if (next === catalogo) return;
+    setCatalogo(next);
+    setTipo('nombre');
+    setInput('');
+  }
 
   function selectTipo(next: string) {
     if (next === tipo) return;
@@ -53,7 +74,7 @@ export default function SearchScreen() {
       setOffline(!(await isOnline()));
       return suggestMedicamentos(debouncedQuery);
     },
-    enabled: isLiveSearch && tipo === 'nombre',
+    enabled: catalogo === 'medicamentos' && isLiveSearch && tipo === 'nombre',
     staleTime: 15_000,
   });
 
@@ -63,17 +84,52 @@ export default function SearchScreen() {
       setOffline(!(await isOnline()));
       return searchMedicamentos(debouncedQuery, tipo);
     },
-    enabled: isLiveSearch,
+    enabled: catalogo === 'medicamentos' && isLiveSearch,
+    staleTime: 15_000,
+  });
+
+  const {
+    data: dmData,
+    isLoading: dmLoading,
+    error: dmError,
+  } = useQuery({
+    queryKey: ['dispositivos', debouncedQuery, tipo],
+    queryFn: async () => {
+      setOffline(!(await isOnline()));
+      if (!(await isOnline())) {
+        throw new Error('Dispositivos médicos requieren conexión al servidor.');
+      }
+      return searchDispositivos(debouncedQuery, tipo === 'registro' ? 'registro' : 'nombre');
+    },
+    enabled: catalogo === 'dispositivos' && isLiveSearch,
     staleTime: 15_000,
   });
 
   const showSuggestions =
-    isLiveSearch && tipo === 'nombre' && (suggestions?.items.length ?? 0) > 0;
-  const showResults = isLiveSearch && (data?.items.length ?? 0) > 0;
-  const showEmpty = isLiveSearch && !isLoading && !loadingSuggest && !showResults && !error;
+    catalogo === 'medicamentos' &&
+    isLiveSearch &&
+    tipo === 'nombre' &&
+    (suggestions?.items.length ?? 0) > 0;
+  const showMedResults =
+    catalogo === 'medicamentos' && isLiveSearch && (data?.items.length ?? 0) > 0;
+  const showDmResults =
+    catalogo === 'dispositivos' && isLiveSearch && (dmData?.items.length ?? 0) > 0;
+  const loading = catalogo === 'medicamentos' ? isLoading || loadingSuggest : dmLoading;
+  const activeError = catalogo === 'medicamentos' ? error : dmError;
+  const showEmpty =
+    isLiveSearch &&
+    !loading &&
+    !activeError &&
+    !showMedResults &&
+    !showDmResults &&
+    !showSuggestions;
 
   function navigateToMedicamento(item: MedicamentoSummary | MedicamentoSuggest) {
     router.push(`/medicamentos/${item.id}`);
+  }
+
+  function navigateToDispositivo(item: DispositivoSummary) {
+    router.push(`/dispositivos/${item.id}` as never);
   }
 
   return (
@@ -85,17 +141,47 @@ export default function SearchScreen() {
         </Text>
       ) : null}
 
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.catalogScroll}
+        contentContainerStyle={styles.chips}
+      >
+        {(
+          [
+            ['medicamentos', 'Medicamentos'],
+            ['dispositivos', 'Dispositivos'],
+          ] as const
+        ).map(([id, label]) => (
+          <Pressable
+            key={id}
+            style={[styles.chip, catalogo === id && styles.chipActive]}
+            onPress={() => selectCatalogo(id)}
+          >
+            <Text style={[styles.chipText, catalogo === id && styles.chipTextActive]}>
+              {label}
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+
       <View style={styles.inputWrap}>
         <TextInput
           style={styles.input}
-          placeholder={TIPO_PLACEHOLDERS[tipo] ?? 'Escriba para buscar...'}
+          placeholder={
+            catalogo === 'dispositivos'
+              ? tipo === 'registro'
+                ? 'Ej: INVIMA 2018DM-000456-R1'
+                : 'Ej: Catéter, glucometro, stent...'
+              : (TIPO_PLACEHOLDERS[tipo] ?? 'Escriba para buscar...')
+          }
           value={input}
           onChangeText={setInput}
           autoCorrect={false}
           autoCapitalize="none"
           returnKeyType="search"
         />
-        {(isLoading || loadingSuggest) && isLiveSearch ? (
+        {loading && isLiveSearch ? (
           <ActivityIndicator style={styles.inputSpinner} color="#006874" size="small" />
         ) : null}
       </View>
@@ -106,7 +192,7 @@ export default function SearchScreen() {
         style={styles.chipsScroll}
         contentContainerStyle={styles.chips}
       >
-        {Object.entries(TIPO_LABELS).map(([t, label]) => (
+        {Object.entries(tipoLabels).map(([t, label]) => (
           <Pressable
             key={t}
             style={[styles.chip, tipo === t && styles.chipActive]}
@@ -123,7 +209,7 @@ export default function SearchScreen() {
         <Text style={styles.hint}>Escriba al menos {MIN_CHARS} caracteres...</Text>
       ) : null}
 
-      {error ? <Text style={styles.error}>{getErrorMessage(error)}</Text> : null}
+      {activeError ? <Text style={styles.error}>{getErrorMessage(activeError)}</Text> : null}
 
       <ScrollView style={styles.resultsScroll} keyboardShouldPersistTaps="handled">
         {showSuggestions ? (
@@ -140,7 +226,7 @@ export default function SearchScreen() {
           </View>
         ) : null}
 
-        {showResults ? (
+        {showMedResults ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Resultados ({data!.meta.total})</Text>
             {data!.items.map((item) => (
@@ -165,6 +251,38 @@ export default function SearchScreen() {
           </View>
         ) : null}
 
+        {showDmResults ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Resultados ({dmData!.meta.total})</Text>
+            {dmData!.items.map((item) => (
+              <Pressable
+                key={item.id}
+                style={styles.dmCard}
+                onPress={() => navigateToDispositivo(item)}
+              >
+                <Text style={styles.dmTitle} numberOfLines={3}>
+                  {item.nombre}
+                </Text>
+                {item.numeroRegistro ? (
+                  <Text style={styles.dmMeta} numberOfLines={2}>
+                    {item.numeroRegistro}
+                  </Text>
+                ) : null}
+                {item.categoria ? (
+                  <Text style={styles.dmMeta} numberOfLines={2}>
+                    {item.categoria}
+                  </Text>
+                ) : null}
+                {item.fabricante ? (
+                  <Text style={styles.dmMeta} numberOfLines={2}>
+                    {item.fabricante}
+                  </Text>
+                ) : null}
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+
         {showEmpty ? (
           <Text style={styles.empty}>Sin resultados para "{debouncedQuery}"</Text>
         ) : null}
@@ -177,6 +295,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, backgroundColor: '#fff' },
   heading: { fontSize: 22, fontWeight: '700', marginBottom: 8 },
   offline: { color: '#e65100', marginBottom: 8 },
+  catalogScroll: { maxHeight: 44, marginBottom: 8 },
   inputWrap: { position: 'relative' },
   input: {
     borderWidth: 1,
@@ -200,4 +319,14 @@ const styles = StyleSheet.create({
   related: { marginTop: 16 },
   error: { color: '#c62828', marginTop: 12 },
   empty: { textAlign: 'center', color: '#666', marginTop: 24 },
+  dmCard: {
+    padding: 14,
+    backgroundColor: '#f5f8f9',
+    borderRadius: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#e0eef0',
+  },
+  dmTitle: { fontWeight: '700', fontSize: 16, color: '#111', marginBottom: 4 },
+  dmMeta: { color: '#555', fontSize: 13, lineHeight: 18 },
 });

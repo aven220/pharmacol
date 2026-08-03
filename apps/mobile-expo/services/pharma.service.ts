@@ -93,6 +93,48 @@ export async function suggestMedicamentos(
   }
 }
 
+export type DispositivoSummary = {
+  id: string;
+  nombre: string;
+  categoria?: string;
+  estadoRegistro?: string;
+  numeroRegistro?: string;
+  fabricante?: string;
+};
+
+function mapDispositivo(raw: Record<string, unknown>): DispositivoSummary {
+  const registro = raw.registroInvima as Record<string, unknown> | undefined;
+  const fab = raw.fabricante as Record<string, unknown> | undefined;
+  return {
+    id: String(raw.id),
+    nombre: String(raw.nombre ?? ''),
+    categoria: (raw.categoria as string | undefined) ?? undefined,
+    estadoRegistro: (raw.estadoRegistro as string | undefined) ?? undefined,
+    numeroRegistro: (registro?.numeroRegistro as string | undefined) ?? undefined,
+    fabricante: (fab?.razonSocial as string | undefined) ?? undefined,
+  };
+}
+
+export async function searchDispositivos(
+  query: string,
+  tipo: 'nombre' | 'registro' = 'nombre',
+  page = 1,
+): Promise<{ items: DispositivoSummary[]; meta: PaginatedMeta }> {
+  const { data } = await api.get('/dispositivos/search', {
+    params: { q: query, tipo, page, limit: 20, soloVigentes: true },
+  });
+  const payload = data.data as { items: Record<string, unknown>[]; meta: PaginatedMeta };
+  return {
+    items: payload.items.map(mapDispositivo),
+    meta: payload.meta,
+  };
+}
+
+export async function getDispositivo(id: string): Promise<Record<string, unknown>> {
+  const { data } = await api.get(`/dispositivos/${id}`);
+  return data.data as Record<string, unknown>;
+}
+
 function presentacionesFromOffline(raw: Record<string, unknown>): PresentacionesResponse {
   const presentaciones = buildPresentaciones(raw);
   return {

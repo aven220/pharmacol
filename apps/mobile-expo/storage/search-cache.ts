@@ -112,7 +112,10 @@ function extractPrincipios(item: Record<string, unknown>): string {
   return pas
     .map((p) => {
       const pa = p.principioActivo as Record<string, unknown> | undefined;
-      return String(pa?.nombreOficial ?? pa?.nombreNormalizado ?? '');
+      const nombre = String(pa?.nombreOficial ?? pa?.nombreNormalizado ?? '');
+      const rawConc = String(p.concentracion ?? '').trim();
+      const conc = rawConc.length > 1 ? rawConc : '';
+      return nombre ? (conc ? `${nombre} ${conc}` : nombre) : '';
     })
     .filter(Boolean)
     .join(' · ');

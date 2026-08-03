@@ -8,7 +8,6 @@ import {
 } from '../api/client';
 import { MedicamentoCard } from '../components/MedicamentoCard';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
-import { useAuth } from '../auth/AuthContext';
 import { mapMedicamentoSummary, type MedicamentoSummary } from '../types/medicamentos';
 
 const MIN_CHARS = 2;
@@ -52,8 +51,6 @@ function mapDispositivo(raw: Record<string, unknown>): DispositivoSummary {
 }
 
 export default function ConsultaPage() {
-  const { can } = useAuth();
-  const canDm = can('dispositivos:read');
   const [catalogo, setCatalogo] = useState<Catalogo>('medicamentos');
   const [input, setInput] = useState('');
   const [tipo, setTipo] = useState('nombre');
@@ -186,15 +183,13 @@ export default function ConsultaPage() {
         >
           Medicamentos
         </button>
-        {canDm ? (
-          <button
-            type="button"
-            className={`chip${catalogo === 'dispositivos' ? ' chip-active' : ''}`}
-            onClick={() => selectCatalogo('dispositivos')}
-          >
-            Dispositivos médicos
-          </button>
-        ) : null}
+        <button
+          type="button"
+          className={`chip${catalogo === 'dispositivos' ? ' chip-active' : ''}`}
+          onClick={() => selectCatalogo('dispositivos')}
+        >
+          Dispositivos médicos
+        </button>
       </div>
 
       {catalogo === 'dispositivos' ? (
