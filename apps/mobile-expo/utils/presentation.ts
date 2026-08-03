@@ -143,7 +143,7 @@ export function buildPresentacionComercial(
 export function formatConsecutivo(consecutivo?: string | null): string {
   if (!consecutivo?.trim()) return '';
   const n = parseInt(consecutivo.trim(), 10);
-  if (!Number.isNaN(n)) return String(n).padStart(2, '0');
+  if (!Number.isNaN(n)) return String(n);
   return consecutivo.trim();
 }
 
@@ -153,32 +153,62 @@ export function formatCumConsec(expedienteCum?: string | null, consecutivo?: str
   return consec ? `${expedienteCum.trim()}-${consec}` : expedienteCum.trim();
 }
 
+function buildEmbalajeEtiquetaCorta(
+  descripcionComercial?: string | null,
+  cantidadCum?: string | null,
+  formaFarmaceutica?: string | null,
+): string {
+  const embalaje = buildPresentacionComercial(descripcionComercial, cantidadCum, formaFarmaceutica);
+  if (!embalaje || embalaje === 'Presentación comercial no disponible') return '';
+
+  const parts: string[] = [
+    embalaje
+      .replace(/^Caja\s+/i, 'caja ')
+      .replace(/^Frasco\s+/i, 'frasco ')
+      .replace(/^Envase\s+/i, 'envase ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase(),
+  ];
+
+  const desc = descripcionComercial ?? '';
+  const blister = desc.match(
+    /(?:CADA\s+BLISTER\s*(?:POR|X|×|DE)|POR)\s*(\d+(?:[.,]\d+)?)\s*(?:TABLETAS?|CAPSULAS?|COMPRIMIDOS?)/i,
+  );
+  if (blister) parts.push(`blister x ${blister[1]}`);
+
+  return parts.join(', ');
+}
+
+/** Ej: 38840-1 periactin 4mg caja x 30 tabletas, blister x 10 */
 export function buildEtiquetaPresentacion(info: {
   expedienteCum?: string | null;
   consecutivo?: string | null;
   descripcionComercial?: string | null;
   cantidadCum?: string | null;
   formaFarmaceutica?: string | null;
+  nombreComercial?: string | null;
+  concentracion?: string | null;
 }): string {
   const cumConsec = formatCumConsec(info.expedienteCum, info.consecutivo);
-  const presentacion = buildPresentacionComercial(
+  const nombre = (info.nombreComercial ?? '').trim().toLowerCase();
+  const concentracion = (info.concentracion ?? '').trim().toLowerCase().replace(/\s+/g, '');
+  const embalaje = buildEmbalajeEtiquetaCorta(
     info.descripcionComercial,
     info.cantidadCum,
     info.formaFarmaceutica,
   );
-  if (cumConsec && presentacion !== 'Presentación comercial no disponible') {
-    return `${cumConsec} | ${presentacion}`;
-  }
+  const parts = [cumConsec, nombre, concentracion, embalaje].filter(Boolean);
+  if (parts.length > 1) return parts.join(' ');
   if (cumConsec && info.descripcionComercial?.trim()) {
-    return `${cumConsec} | ${info.descripcionComercial.trim().slice(0, 80)}`;
+    return `${cumConsec} ${info.descripcionComercial.trim().slice(0, 100).toLowerCase()}`;
   }
-  if (cumConsec && info.cantidadCum?.trim()) {
-    const fallback = buildPresentacionComercial(null, info.cantidadCum, info.formaFarmaceutica);
-    if (fallback !== 'Presentación comercial no disponible') {
-      return `${cumConsec} | ${fallback}`;
-    }
-  }
-  return cumConsec || presentacion;
+  const fallback = buildPresentacionComercial(
+    info.descripcionComercial,
+    info.cantidadCum,
+    info.formaFarmaceutica,
+  );
+  return cumConsec || fallback;
 }
 
 export function parseDescripcionComercial(

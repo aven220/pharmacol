@@ -17,6 +17,8 @@ export type PresentacionItem = {
   id: string;
   cum?: string;
   consecutivo?: string;
+  expedienteCum?: string;
+  cumConsec?: string;
   etiquetaPresentacion?: string;
   presentacionComercial?: string;
   embalaje?: string;

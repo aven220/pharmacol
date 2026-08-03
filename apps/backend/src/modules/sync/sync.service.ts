@@ -166,7 +166,7 @@ function normalize(text: string | undefined | null): string {
 
 function mapEstado(estado?: string): RegistrationStatus {
   const e = normalize(estado);
-  if (e.includes('vigente')) return RegistrationStatus.VIGENTE;
+  if (e.includes('vigente') || e.includes('renov')) return RegistrationStatus.VIGENTE;
   if (e.includes('vencido')) return RegistrationStatus.VENCIDO;
   if (e.includes('cancelado')) return RegistrationStatus.CANCELADO;
   if (e.includes('suspendido')) return RegistrationStatus.SUSPENDIDO;
@@ -255,7 +255,11 @@ export class SyncService implements OnModuleInit {
 
     const fuente = await this.prisma.dataSource.findUnique({ where: { codigo: fuenteCodigo } });
     if (!fuente || !fuente.activo) {
-      throw new Error(`Fuente ${fuenteCodigo} no encontrada o inactiva`);
+      throw new BadRequestException(
+        fuenteCodigo === 'INVIMA_CUM_VENCIDOS'
+          ? 'INVIMA_CUM_VENCIDOS está desactivada: INVIMA retiró ese dataset de datos.gov.co. Use INVIMA_CUM_VIGENTES.'
+          : `Fuente ${fuenteCodigo} no encontrada o inactiva.`,
+      );
     }
 
     const dbInFlight = await this.prisma.syncJob.findFirst({
@@ -982,6 +986,7 @@ export class SyncService implements OnModuleInit {
       update: {
         estado: record.estadoregistro,
         fechaVencimiento: parseDateSafe(record.fechavencimiento),
+        tipoProducto: ProductType.DISPOSITIVO,
       },
       create: {
         numeroRegistro,

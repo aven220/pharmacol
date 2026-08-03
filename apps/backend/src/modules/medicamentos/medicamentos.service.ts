@@ -593,25 +593,55 @@ export class MedicamentosService {
 
   async offlinePack(page = 1, limit = 500) {
     const skip = (page - 1) * limit;
+    const take = Math.min(Math.max(limit, 1), 1000);
     const [items, total] = await Promise.all([
       this.prisma.medicamento.findMany({
         where: { estadoRegistro: RegistrationStatus.VIGENTE },
         include: {
-          registroInvima: { select: { numeroRegistro: true, fechaVencimiento: true, estado: true } },
+          registroInvima: {
+            select: { numeroRegistro: true, fechaVencimiento: true, estado: true },
+          },
           laboratorio: { select: { razonSocial: true } },
-          codigosCum: { select: { codigoCompleto: true } },
-          principiosActivos: { include: { principioActivo: { select: { nombreOficial: true } } } },
+          titular: { select: { razonSocial: true } },
+          codigosCum: {
+            select: {
+              id: true,
+              codigoCompleto: true,
+              consecutivo: true,
+              expedienteCum: true,
+              estadoCum: true,
+              descripcionProducto: true,
+            },
+            orderBy: { consecutivo: 'asc' },
+          },
+          presentaciones: {
+            select: {
+              id: true,
+              descripcion: true,
+              codigoCum: true,
+              cantidad: true,
+              unidad: true,
+              codigoBarras: true,
+            },
+          },
+          principiosActivos: {
+            include: {
+              principioActivo: {
+                select: { nombreOficial: true, nombreNormalizado: true },
+              },
+            },
+          },
         },
         skip,
-        take: limit,
-        orderBy: { updatedAt: 'desc' },
+        take,
+        orderBy: { nombreComercial: 'asc' },
       }),
       this.prisma.medicamento.count({ where: { estadoRegistro: RegistrationStatus.VIGENTE } }),
     ]);
 
     return {
       items,
-      meta: { total, page, limit, pages: Math.ceil(total / limit) },
+      meta: { total, page, limit: take, pages: Math.ceil(total / take) },
       generatedAt: new Date().toISOString(),
     };
   }

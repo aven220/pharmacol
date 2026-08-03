@@ -31,6 +31,7 @@ export class DispositivosService {
       } else {
         where.OR = [
           { nombre: { contains: q, mode: 'insensitive' } },
+          { categoria: { contains: q, mode: 'insensitive' } },
           { registroInvima: { numeroRegistro: { contains: q, mode: 'insensitive' } } },
         ];
       }

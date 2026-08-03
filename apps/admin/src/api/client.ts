@@ -263,6 +263,28 @@ export async function searchMedicamentos(
   };
 }
 
+export async function searchDispositivos(
+  q: string,
+  tipo: 'nombre' | 'registro' = 'nombre',
+  page = 1,
+  limit = 20,
+  soloVigentes = true,
+) {
+  const { data } = await api.get('/dispositivos/search', {
+    params: { q, tipo, page, limit, soloVigentes },
+  });
+  const payload = data.data ?? data;
+  return payload as {
+    items: Record<string, unknown>[];
+    meta: { total: number; page: number; limit: number; totalPages: number };
+  };
+}
+
+export async function fetchDispositivo(id: string) {
+  const { data } = await api.get(`/dispositivos/${id}`);
+  return (data.data ?? data) as Record<string, unknown>;
+}
+
 export async function suggestMedicamentos(q: string, limit = 10) {
   const { data } = await api.get('/medicamentos/suggest', { params: { q, limit } });
   const payload = data.data ?? data;

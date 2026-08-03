@@ -219,6 +219,8 @@ export function buildPresentaciones(raw: Record<string, unknown>): PresentacionI
       descripcionComercial: descripcionProducto,
       cantidadCum,
       formaFarmaceutica: raw.formaFarmaceutica as string | undefined,
+      nombreComercial: raw.nombreComercial as string | undefined,
+      concentracion: raw.concentracion as string | undefined,
     });
 
     return {
@@ -263,6 +265,8 @@ export function buildPresentaciones(raw: Record<string, unknown>): PresentacionI
       descripcionComercial: descripcion,
       cantidadCum,
       formaFarmaceutica: raw.formaFarmaceutica as string | undefined,
+      nombreComercial: raw.nombreComercial as string | undefined,
+      concentracion: raw.concentracion as string | undefined,
     });
     items.push({
       id: String(pres.id),

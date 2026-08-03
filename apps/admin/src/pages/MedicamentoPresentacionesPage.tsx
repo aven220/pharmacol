@@ -55,12 +55,25 @@ export default function MedicamentoPresentacionesPage() {
 
 function PresentacionCard({ medicamentoId, pres }: { medicamentoId: string; pres: PresentacionItem }) {
   const label =
-    pres.embalajeResumen ?? pres.etiquetaPresentacion ?? pres.presentacionComercial ?? pres.embalaje ?? 'Presentación';
+    pres.etiquetaPresentacion ??
+    (pres.cumConsec
+      ? `${pres.cumConsec} ${pres.embalajeResumen ?? pres.embalaje ?? ''}`.trim()
+      : null) ??
+    pres.embalajeResumen ??
+    pres.presentacionComercial ??
+    pres.embalaje ??
+    'Presentación';
   const fichaUrl = `/consulta/${medicamentoId}/ficha?cumId=${encodeURIComponent(pres.id)}${pres.cum ? `&cum=${encodeURIComponent(pres.cum)}` : ''}`;
 
   return (
     <Link to={fichaUrl} className="pres-card">
       <strong className="pres-etiqueta">{label}</strong>
+      {pres.cumConsec ? (
+        <p className="pres-desc">
+          <strong>CUM:</strong> {pres.cumConsec}
+          {pres.cum && pres.cum !== pres.cumConsec ? ` (${pres.cum})` : ''}
+        </p>
+      ) : null}
       {pres.contenidoEnvase ? (
         <p className="pres-desc">
           <strong>Envase:</strong> {pres.contenidoEnvase}

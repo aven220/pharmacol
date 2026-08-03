@@ -40,7 +40,7 @@ export const PERMISSIONS = [
 /** Matriz rol → permisos (codigos) */
 export const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
   ADMINISTRADOR: PERMISSIONS.map((p) => p.codigo),
-  REGENTE: ['medicamentos:read', 'alertas:view', 'alertas:sync'],
+  REGENTE: ['medicamentos:read', 'dispositivos:read', 'alertas:view', 'alertas:sync'],
 };
 
 async function migrateDeprecatedRoles(prisma: PrismaClient): Promise<void> {

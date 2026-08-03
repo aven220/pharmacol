@@ -173,9 +173,16 @@ export default function SyncPage() {
       <div className="card">
         <h3>Fuentes activas</h3>
         <p style={{ fontSize: 13, color: '#666' }}>
-          Para <strong>medicamentos</strong> usa <code>INVIMA_CUM_VIGENTES</code>.
-          <strong> Token INVIMA es opcional</strong> — si la sync no arranca, use &quot;Liberar colgadas&quot;.
-          Omitidos altos en re-sync es normal. Dataset CUM vigentes: ~157.000 filas (no confundir con medicamentos únicos).
+          Fuentes útiles:
+          <br />• <code>INVIMA_CUM_VIGENTES</code> — medicamentos (puede reportar errores menores
+          por filas incompletas; si el % de error es bajo, la base queda usable).
+          <br />• <code>INVIMA_DISPOSITIVOS</code> — dispositivos médicos (hay que ejecutarla
+          aparte; sin esta sync la búsqueda de DM queda vacía).
+          <br />• <code>INVIMA_ALERTAS_PORTAL</code> / <code>INVIMA_ALERTAS_SANITARIAS</code> —
+          alertas.
+          <br />
+          <strong>Token INVIMA es opcional</strong>. Si una sync no arranca, use &quot;Liberar
+          colgadas&quot;. Omitidos altos en re-sync es normal.
         </p>
         <button
           type="button"

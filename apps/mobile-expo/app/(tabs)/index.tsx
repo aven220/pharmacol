@@ -79,7 +79,11 @@ export default function SearchScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.heading}>Consulta farmacéutica</Text>
-      {offline ? <Text style={styles.offline}>Modo offline — caché local</Text> : null}
+      {offline ? (
+        <Text style={styles.offline}>
+          Sin red — buscando en el paquete guardado en el teléfono
+        </Text>
+      ) : null}
 
       <View style={styles.inputWrap}>
         <TextInput

@@ -156,19 +156,26 @@ export class AlertasSanitariasService {
     const ctx = buildMedicamentoAlertaContext(med);
     const orConditions: Prisma.AlertaSanitariaWhereInput[] = [];
 
+    // Prefetch acotado: registro + nombre/PA distintivos (no palabras genéricas tipo "tabletas")
     if (ctx.numeroRegistro) {
       const reg = ctx.numeroRegistro.trim();
-      const regShort = reg.replace(/^INVIMA\s+/i, '');
+      const regShort = reg.replace(/^INVIMA\s+/i, '').trim();
       orConditions.push({ descripcion: { contains: reg, mode: 'insensitive' } });
-      if (regShort !== reg) {
+      if (regShort.length >= 8 && regShort !== reg) {
         orConditions.push({ descripcion: { contains: regShort, mode: 'insensitive' } });
       }
     }
 
-    for (const token of ctx.tokens.slice(0, 8)) {
-      if (token.length < 4) continue;
-      orConditions.push({ tituloNorm: { contains: token, mode: 'insensitive' } });
-      if (token.length >= 6) {
+    const prefetchTokens = [
+      ctx.nombreNormalizado,
+      ctx.primaryToken,
+      ...ctx.principiosActivos.slice(0, 3),
+    ].filter((t, i, arr) => t && t.length >= 5 && arr.indexOf(t) === i);
+
+    for (const token of prefetchTokens.slice(0, 6)) {
+      orConditions.push({ tituloNorm: { contains: token.slice(0, 80), mode: 'insensitive' } });
+      orConditions.push({ titulo: { contains: token.slice(0, 80), mode: 'insensitive' } });
+      if (token.length >= 7) {
         orConditions.push({ descripcion: { contains: token.slice(0, 60), mode: 'insensitive' } });
       }
     }
@@ -207,7 +214,7 @@ export class AlertasSanitariasService {
         const relevancia = scoreAlertaParaMedicamento(alerta, ctx);
         return mapAlertaConClasificacion(alerta, relevancia);
       })
-      .filter((a) => a.relevancia >= 0.7)
+      .filter((a) => a.relevancia >= 0.85)
       .sort((a, b) => b.relevancia - a.relevancia || b.fechaAlerta.getTime() - a.fechaAlerta.getTime())
       .slice(0, limit);
 

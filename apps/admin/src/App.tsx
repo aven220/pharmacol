@@ -11,6 +11,7 @@ import MedicamentoPresentacionesPage from './pages/MedicamentoPresentacionesPage
 import MedicamentoFichaPage from './pages/MedicamentoFichaPage';
 import AlertasSanitariasPage from './pages/AlertasSanitariasPage';
 import CumEstadoPage from './pages/CumEstadoPage';
+import DispositivoDetallePage from './pages/DispositivoDetallePage';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { loading } = useAuth();
@@ -107,6 +108,14 @@ function AppRoutes() {
                   element={
                     <RequirePermission permission="medicamentos:read">
                       <MedicamentoFichaPage />
+                    </RequirePermission>
+                  }
+                />
+                <Route
+                  path="/dispositivos/:id"
+                  element={
+                    <RequirePermission permission="dispositivos:read">
+                      <DispositivoDetallePage />
                     </RequirePermission>
                   }
                 />

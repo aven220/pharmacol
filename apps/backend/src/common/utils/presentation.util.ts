@@ -212,44 +212,87 @@ export function buildPresentacionComercial(
 export function formatConsecutivo(consecutivo?: string | null): string {
   if (!consecutivo?.trim()) return '';
   const n = parseInt(consecutivo.trim(), 10);
-  if (!Number.isNaN(n)) return String(n).padStart(2, '0');
+  if (!Number.isNaN(n)) return String(n);
   return consecutivo.trim();
 }
 
-/** Ej: 52477-01 */
+/** Ej: 38840-1 */
 export function formatCumConsec(expedienteCum?: string | null, consecutivo?: string | null): string {
   if (!expedienteCum?.trim()) return '';
   const consec = formatConsecutivo(consecutivo);
   return consec ? `${expedienteCum.trim()}-${consec}` : expedienteCum.trim();
 }
 
-/** Ej: 52477-01 | Frasco x 1 de 60 ml */
+/** Empaqueta: "caja x 30 tabletas, blister x 10" */
+export function buildEmbalajeEtiquetaCorta(
+  descripcionComercial?: string | null,
+  cantidadCum?: string | null,
+  formaFarmaceutica?: string | null,
+): string {
+  const parsed = parseEmbalajeDetallado(descripcionComercial, cantidadCum, formaFarmaceutica);
+  const parts: string[] = [];
+
+  if (parsed.contenidoEnvase) {
+    const unit = parsed.contenidoEnvase.replace(/^\d+(?:[.,]\d+)?\s*/, '');
+    const qty = parsed.contenidoEnvase.match(/^(\d+(?:[.,]\d+)?)/)?.[1];
+    if (qty) parts.push(`caja x ${qty} ${unit}`.toLowerCase());
+  } else if (parsed.embalaje && parsed.embalaje !== 'Presentación comercial no disponible') {
+    parts.push(
+      parsed.embalaje
+        .replace(/^Caja\s+/i, 'caja ')
+        .replace(/^Frasco\s+/i, 'frasco ')
+        .replace(/^Envase\s+/i, 'envase ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase(),
+    );
+  }
+
+  if (parsed.unidadesPorBlister) {
+    const n = parsed.unidadesPorBlister.match(/^(\d+(?:[.,]\d+)?)/)?.[1];
+    if (n) parts.push(`blister x ${n}`);
+  }
+
+  return parts.join(', ');
+}
+
+/**
+ * Ej: 38840-1 periactin 4mg caja x 30 tabletas, blister x 10
+ */
 export function buildEtiquetaPresentacion(info: {
   expedienteCum?: string | null;
   consecutivo?: string | null;
   descripcionComercial?: string | null;
   cantidadCum?: string | null;
   formaFarmaceutica?: string | null;
+  nombreComercial?: string | null;
+  concentracion?: string | null;
 }): string {
   const cumConsec = formatCumConsec(info.expedienteCum, info.consecutivo);
-  const presentacion = buildPresentacionComercial(
+  const nombre = (info.nombreComercial ?? '').trim().toLowerCase();
+  const concentracion = (info.concentracion ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '');
+  const embalaje = buildEmbalajeEtiquetaCorta(
     info.descripcionComercial,
     info.cantidadCum,
     info.formaFarmaceutica,
   );
-  if (cumConsec && presentacion !== 'Presentación comercial no disponible') {
-    return `${cumConsec} | ${presentacion}`;
-  }
+
+  const parts = [cumConsec, nombre, concentracion, embalaje].filter(Boolean);
+  if (parts.length > 1) return parts.join(' ');
+
   if (cumConsec && info.descripcionComercial?.trim()) {
-    return `${cumConsec} | ${info.descripcionComercial.trim().slice(0, 80)}`;
+    return `${cumConsec} ${info.descripcionComercial.trim().slice(0, 100).toLowerCase()}`;
   }
-  if (cumConsec && info.cantidadCum?.trim()) {
-    const fallback = buildPresentacionComercial(null, info.cantidadCum, info.formaFarmaceutica);
-    if (fallback !== 'Presentación comercial no disponible') {
-      return `${cumConsec} | ${fallback}`;
-    }
-  }
-  return cumConsec || presentacion;
+
+  const fallback = buildPresentacionComercial(
+    info.descripcionComercial,
+    info.cantidadCum,
+    info.formaFarmaceutica,
+  );
+  return cumConsec || fallback;
 }
 
 function consecutivoSortKey(consecutivo?: string | null): number {
@@ -511,6 +554,8 @@ export function buildPresentacionesItems(med: {
       descripcionComercial: descripcionProducto,
       cantidadCum,
       formaFarmaceutica: med.formaFarmaceutica,
+      nombreComercial: med.nombreComercial,
+      concentracion: med.concentracion,
     });
     return {
       id: cum.id,
@@ -553,6 +598,8 @@ export function buildPresentacionesItems(med: {
       descripcionComercial: descripcion,
       cantidadCum,
       formaFarmaceutica: med.formaFarmaceutica,
+      nombreComercial: med.nombreComercial,
+      concentracion: med.concentracion,
     });
     items.push({
       id: pres.id,

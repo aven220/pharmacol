@@ -45,12 +45,20 @@ Descarga el `.apk` del enlace EAS e instálalo en el Android.
 
 Ya **no** hay botón “Probar / Reintentar conexión”. Al pulsar **Iniciar sesión** conecta directo al servidor.
 
-## Cambiar IP del servidor
+## 4. Modo sin internet (offline)
 
-Si la IP del Windows cambia, edita antes del build:
+La app guarda en SQLite del teléfono un **paquete offline** (~todos los medicamentos vigentes + CUM/presentaciones).
 
-- `apps/mobile-expo/.env.production`
-- `apps/mobile-expo/eas.json` (`EXPO_PUBLIC_API_URL`)
-- `apps/mobile-expo/config/api.ts` (`DEFAULT_LAN_API_URL`)
+### Cómo usarlo
 
-Luego vuelve a generar la APK (`pnpm mobile:apk`).
+1. Con Wi‑Fi al servidor: inicia sesión.
+2. La app **sincroniza sola** si no hay datos o tienen más de 24 h (también puedes forzar en **Perfil → Descargar/Actualizar paquete offline**).
+3. Apaga datos/Wi‑Fi o sal de la red: puedes **buscar** por nombre, INVIMA, CUM o principio activo, y abrir **presentaciones/ficha** desde lo guardado.
+4. Al volver a conectarte, sincroniza de nuevo para actualizar.
+
+### Notas
+
+- El login sí necesita red (al servidor LAN).
+- Favoritos e IA/OCR requieren red.
+- Tras actualizar backend o APP, vuelve a sincronizar el paquete desde Perfil.
+- Rebuild APK tras estos cambios: `pnpm mobile:apk`.
